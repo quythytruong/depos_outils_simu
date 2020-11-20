@@ -1,0 +1,221 @@
+<!DOCTYPE model>
+<Option type="Map">
+  <Option type="Map" name="children">
+    <Option type="Map" name="grass7:v.net.centrality_1">
+      <Option value="true" type="bool" name="active"/>
+      <Option name="alg_config"/>
+      <Option value="grass7:v.net.centrality" type="QString" name="alg_id"/>
+      <Option value="v.net.centrality" type="QString" name="component_description"/>
+      <Option value="207" type="double" name="component_pos_x"/>
+      <Option value="318" type="double" name="component_pos_y"/>
+      <Option name="dependencies"/>
+      <Option value="grass7:v.net.centrality_1" type="QString" name="id"/>
+      <Option name="outputs"/>
+      <Option value="true" type="bool" name="outputs_collapsed"/>
+      <Option value="true" type="bool" name="parameters_collapsed"/>
+      <Option type="Map" name="params">
+        <Option type="List" name="-a">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="true" type="bool" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="-g">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="false" type="bool" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_MIN_AREA_PARAMETER">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="0.0001" type="double" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_OUTPUT_TYPE_PARAMETER">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="0" type="int" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_REGION_PARAMETER">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option type="invalid" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_SNAP_TOLERANCE_PARAMETER">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="-1" type="double" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_VECTOR_DSCO">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_VECTOR_EXPORT_NOCAT">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="false" type="bool" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="GRASS_VECTOR_LCO">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="arc_backward_column">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option type="invalid" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="arc_column">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option type="invalid" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="betweenness">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="betweenness" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="cats">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="closeness">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="closeness" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="degree">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="degree" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="eigenvector">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="eigenvector" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="error">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="0.1" type="double" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="input">
+          <Option type="Map">
+            <Option value="reseauroutier" type="QString" name="parameter_name"/>
+            <Option value="0" type="int" name="source"/>
+          </Option>
+        </Option>
+        <Option type="List" name="iterations">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="1000" type="int" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="node_column">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option type="invalid" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="where">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+      </Option>
+    </Option>
+    <Option type="Map" name="native:extractbyexpression_1">
+      <Option value="true" type="bool" name="active"/>
+      <Option name="alg_config"/>
+      <Option value="native:extractbyexpression" type="QString" name="alg_id"/>
+      <Option value="Extraire par expression" type="QString" name="component_description"/>
+      <Option value="186" type="double" name="component_pos_x"/>
+      <Option value="410" type="double" name="component_pos_y"/>
+      <Option name="dependencies"/>
+      <Option value="native:extractbyexpression_1" type="QString" name="id"/>
+      <Option type="Map" name="outputs">
+        <Option type="Map" name="Intersections les plus centrales">
+          <Option value="native:extractbyexpression_1" type="QString" name="child_id"/>
+          <Option value="Intersections les plus centrales" type="QString" name="component_description"/>
+          <Option value="386" type="double" name="component_pos_x"/>
+          <Option value="455" type="double" name="component_pos_y"/>
+          <Option type="invalid" name="default_value"/>
+          <Option value="false" type="bool" name="mandatory"/>
+          <Option value="Intersections les plus centrales" type="QString" name="name"/>
+          <Option value="OUTPUT" type="QString" name="output_name"/>
+        </Option>
+      </Option>
+      <Option value="true" type="bool" name="outputs_collapsed"/>
+      <Option value="true" type="bool" name="parameters_collapsed"/>
+      <Option type="Map" name="params">
+        <Option type="List" name="EXPRESSION">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="betweenness>= q3(betweenness)" type="QString" name="static_value"/>
+          </Option>
+        </Option>
+        <Option type="List" name="INPUT">
+          <Option type="Map">
+            <Option value="grass7:v.net.centrality_1" type="QString" name="child_id"/>
+            <Option value="output" type="QString" name="output_name"/>
+            <Option value="1" type="int" name="source"/>
+          </Option>
+        </Option>
+      </Option>
+    </Option>
+  </Option>
+  <Option name="help"/>
+  <Option name="modelVariables"/>
+  <Option value="DePOs-algorithm" type="QString" name="model_group"/>
+  <Option value="Intersections centrales" type="QString" name="model_name"/>
+  <Option type="Map" name="parameterDefinitions">
+    <Option type="Map" name="native:extractbyexpression_1:Intersections les plus centrales">
+      <Option value="true" type="bool" name="create_by_default"/>
+      <Option value="-1" type="int" name="data_type"/>
+      <Option type="invalid" name="default"/>
+      <Option value="Intersections les plus centrales" type="QString" name="description"/>
+      <Option value="0" type="int" name="flags"/>
+      <Option name="metadata"/>
+      <Option value="native:extractbyexpression_1:Intersections les plus centrales" type="QString" name="name"/>
+      <Option value="sink" type="QString" name="parameter_type"/>
+      <Option value="true" type="bool" name="supports_non_file_outputs"/>
+    </Option>
+    <Option type="Map" name="reseauroutier">
+      <Option type="List" name="data_types">
+        <Option value="1" type="int"/>
+      </Option>
+      <Option type="invalid" name="default"/>
+      <Option value="routes" type="QString" name="description"/>
+      <Option value="0" type="int" name="flags"/>
+      <Option name="metadata"/>
+      <Option value="reseauroutier" type="QString" name="name"/>
+      <Option value="vector" type="QString" name="parameter_type"/>
+    </Option>
+  </Option>
+  <Option type="Map" name="parameters">
+    <Option type="Map" name="reseauroutier">
+      <Option value="reseauroutier" type="QString" name="component_description"/>
+      <Option value="154" type="double" name="component_pos_x"/>
+      <Option value="105" type="double" name="component_pos_y"/>
+      <Option value="reseauroutier" type="QString" name="name"/>
+    </Option>
+  </Option>
+</Option>

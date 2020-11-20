@@ -1,0 +1,153 @@
+<!DOCTYPE model>
+<Option type="Map">
+  <Option type="Map" name="children">
+    <Option type="Map" name="model:Intersections centrales_1">
+      <Option value="true" type="bool" name="active"/>
+      <Option name="alg_config"/>
+      <Option value="model:Intersections centrales" type="QString" name="alg_id"/>
+      <Option value="Intersections centrales" type="QString" name="component_description"/>
+      <Option value="159" type="double" name="component_pos_x"/>
+      <Option value="229" type="double" name="component_pos_y"/>
+      <Option name="dependencies"/>
+      <Option value="model:Intersections centrales_1" type="QString" name="id"/>
+      <Option name="outputs"/>
+      <Option value="true" type="bool" name="outputs_collapsed"/>
+      <Option value="true" type="bool" name="parameters_collapsed"/>
+      <Option type="Map" name="params">
+        <Option type="List" name="idreseau">
+          <Option type="Map">
+            <Option value="reseauroutierattributid" type="QString" name="parameter_name"/>
+            <Option value="0" type="int" name="source"/>
+          </Option>
+        </Option>
+        <Option type="List" name="reseauroutier">
+          <Option type="Map">
+            <Option value="rseauroutier" type="QString" name="parameter_name"/>
+            <Option value="0" type="int" name="source"/>
+          </Option>
+        </Option>
+      </Option>
+    </Option>
+    <Option type="Map" name="qgis:distancetonearesthublinetohub_1">
+      <Option value="true" type="bool" name="active"/>
+      <Option name="alg_config"/>
+      <Option value="qgis:distancetonearesthublinetohub" type="QString" name="alg_id"/>
+      <Option value="Distance au plus proche hub (ligne vers hub)" type="QString" name="component_description"/>
+      <Option value="482" type="double" name="component_pos_x"/>
+      <Option value="335" type="double" name="component_pos_y"/>
+      <Option name="dependencies"/>
+      <Option value="qgis:distancetonearesthublinetohub_1" type="QString" name="id"/>
+      <Option type="Map" name="outputs">
+        <Option type="Map" name="hubline">
+          <Option value="qgis:distancetonearesthublinetohub_1" type="QString" name="child_id"/>
+          <Option value="hubline" type="QString" name="component_description"/>
+          <Option value="256" type="double" name="component_pos_x"/>
+          <Option value="475" type="double" name="component_pos_y"/>
+          <Option type="invalid" name="default_value"/>
+          <Option value="false" type="bool" name="mandatory"/>
+          <Option value="hubline" type="QString" name="name"/>
+          <Option value="OUTPUT" type="QString" name="output_name"/>
+        </Option>
+      </Option>
+      <Option value="true" type="bool" name="outputs_collapsed"/>
+      <Option value="true" type="bool" name="parameters_collapsed"/>
+      <Option type="Map" name="params">
+        <Option type="List" name="FIELD">
+          <Option type="Map">
+            <Option value="reseauroutierattributid" type="QString" name="parameter_name"/>
+            <Option value="0" type="int" name="source"/>
+          </Option>
+        </Option>
+        <Option type="List" name="HUBS">
+          <Option type="Map">
+            <Option value="model:Intersections centrales_1" type="QString" name="child_id"/>
+            <Option value="native:extractbyexpression_1:Intersections les plus centrales" type="QString" name="output_name"/>
+            <Option value="1" type="int" name="source"/>
+          </Option>
+        </Option>
+        <Option type="List" name="INPUT">
+          <Option type="Map">
+            <Option value="gisements" type="QString" name="parameter_name"/>
+            <Option value="0" type="int" name="source"/>
+          </Option>
+        </Option>
+        <Option type="List" name="UNIT">
+          <Option type="Map">
+            <Option value="2" type="int" name="source"/>
+            <Option value="0" type="int" name="static_value"/>
+          </Option>
+        </Option>
+      </Option>
+    </Option>
+  </Option>
+  <Option name="help"/>
+  <Option name="modelVariables"/>
+  <Option value="DePOs-algorithm" type="QString" name="model_group"/>
+  <Option value="Intersections centrales - hublines" type="QString" name="model_name"/>
+  <Option type="Map" name="parameterDefinitions">
+    <Option type="Map" name="gisements">
+      <Option type="List" name="data_types">
+        <Option value="0" type="int"/>
+      </Option>
+      <Option type="invalid" name="default"/>
+      <Option value="gisements" type="QString" name="description"/>
+      <Option value="0" type="int" name="flags"/>
+      <Option name="metadata"/>
+      <Option value="gisements" type="QString" name="name"/>
+      <Option value="source" type="QString" name="parameter_type"/>
+    </Option>
+    <Option type="Map" name="qgis:distancetonearesthublinetohub_1:hubline">
+      <Option value="true" type="bool" name="create_by_default"/>
+      <Option value="1" type="int" name="data_type"/>
+      <Option type="invalid" name="default"/>
+      <Option value="hubline" type="QString" name="description"/>
+      <Option value="0" type="int" name="flags"/>
+      <Option name="metadata"/>
+      <Option value="qgis:distancetonearesthublinetohub_1:hubline" type="QString" name="name"/>
+      <Option value="sink" type="QString" name="parameter_type"/>
+      <Option value="true" type="bool" name="supports_non_file_outputs"/>
+    </Option>
+    <Option type="Map" name="reseauroutierattributid">
+      <Option value="false" type="bool" name="allow_multiple"/>
+      <Option value="0" type="int" name="data_type"/>
+      <Option type="invalid" name="default"/>
+      <Option value="idroutes" type="QString" name="description"/>
+      <Option value="0" type="int" name="flags"/>
+      <Option name="metadata"/>
+      <Option value="reseauroutierattributid" type="QString" name="name"/>
+      <Option value="field" type="QString" name="parameter_type"/>
+      <Option value="rseauroutier" type="QString" name="parent_layer"/>
+    </Option>
+    <Option type="Map" name="rseauroutier">
+      <Option type="List" name="data_types">
+        <Option value="1" type="int"/>
+      </Option>
+      <Option type="invalid" name="default"/>
+      <Option value="routes" type="QString" name="description"/>
+      <Option value="0" type="int" name="flags"/>
+      <Option name="metadata"/>
+      <Option value="rseauroutier" type="QString" name="name"/>
+      <Option value="vector" type="QString" name="parameter_type"/>
+    </Option>
+  </Option>
+  <Option type="Map" name="parameters">
+    <Option type="Map" name="gisements">
+      <Option value="gisements" type="QString" name="component_description"/>
+      <Option value="257" type="double" name="component_pos_x"/>
+      <Option value="323" type="double" name="component_pos_y"/>
+      <Option value="gisements" type="QString" name="name"/>
+    </Option>
+    <Option type="Map" name="reseauroutierattributid">
+      <Option value="reseauroutierattributid" type="QString" name="component_description"/>
+      <Option value="396" type="double" name="component_pos_x"/>
+      <Option value="131" type="double" name="component_pos_y"/>
+      <Option value="reseauroutierattributid" type="QString" name="name"/>
+    </Option>
+    <Option type="Map" name="rseauroutier">
+      <Option value="rseauroutier" type="QString" name="component_description"/>
+      <Option value="188" type="double" name="component_pos_x"/>
+      <Option value="57" type="double" name="component_pos_y"/>
+      <Option value="rseauroutier" type="QString" name="name"/>
+    </Option>
+  </Option>
+</Option>
