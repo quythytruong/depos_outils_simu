@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/simu_damage2" >
+        <file>weather-tornado.png</file>
+    </qresource>
+</RCC>
