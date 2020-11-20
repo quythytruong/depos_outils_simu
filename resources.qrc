@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/plugins/depos_outils_simu" >
+        <file>truck.png</file>
+		<file>broken-roof.png</file>
+    </qresource>
+</RCC>
