@@ -33,10 +33,14 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         super(DePosMainWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
         
+        self.suivi_couche_ad.setLayer(None)
+        self.suivi_couche_zst.setLayer(None)
+        self.suivi_couche_exutoire.setLayer(None)
+        self.input_layer_ad_zst.setLayer(None)
         # Push buttons
         self.partition_radio_on.toggled.connect(lambda : self.pushButton_6.setEnabled(True)) # Collecte par bassin : ON
         self.partition_radio_off.toggled.connect(lambda : self.pushButton_6.setEnabled(False)) # Collecte par bassin : OFF
-        
+        self.pushButton_5.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab))
         # Command line buttons        
         self.command_param_durees.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab_durees))
         self.command_voir_resultats_simu.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab3_result))
@@ -73,6 +77,10 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         dureeEquipedZST = self.doubleSpinBox_25.value()
         isPenaliteTrafic = self.checkBox_18.isChecked() # Pénalité due au trafic
         
+        # Acteurs de collecte
+        nbVehicules = self.nbVehicules_spinBox.value()
+        capaMaxMoy = self.capaMaxMoy_doubleSpinBox.value()
+        
         return { "simuCircuit1" : simuCircuit1, "simuCircuit2" : simuCircuit2,
         "zdLayer1" : zdLayer1, "zdLayer2" : zdLayer2, "zdLayer3" : zdLayer3,
         "isCollecteParBassin" : isCollecteParBassin,
@@ -86,7 +94,9 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         "isDureeDechgtSelonEquipment" : isDureeDechgtSelonEquipment,
         "equipmentZstAttr" : equipmentZstAttr,
         "dureeEquipedZST" : dureeEquipedZST,
-        "isPenaliteTrafic" : isPenaliteTrafic
+        "isPenaliteTrafic" : isPenaliteTrafic,
+        "nbVehicules" : nbVehicules,
+        "capaMaxMoy" : capaMaxMoy
         }
         
         

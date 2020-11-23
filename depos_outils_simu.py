@@ -44,6 +44,9 @@ import processing
 import pandas as pd
 import psycopg2
 from psycopg2 import Error
+
+from .DePOs.CollecteDechets import dureeVidageZoneDepot, dureeCollecteBassin
+
 class SimuDePOs:
     """QGIS Plugin Implementation."""
 
@@ -78,22 +81,24 @@ class SimuDePOs:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
-        
-        simuCircuit1, simuCircuit2 = None, None # Circuits à simuler
-        zdLayer1, zdLayer2, zdLayer3 = None, None, None  # Couches des zones de dépôt              
-        dureeChgt, dureeDechgt = None, None # Durées des opérations
+        '''
+        self.simuCircuit1, self.simuCircuit2 = None, None # Circuits à simuler
+        self.zdLayer1, self.zdLayer2, self.zdLayer3 = None, None, None  # Couches des zones de dépôt   
+        self.traj2ZST, self.traj2Exutoire = [], [] # Chemins chargés
+        self.dureeChgt, self.dureeDechgt = None, None # Durées des opérations
         # Durées des opérations : options avancées 
-        isDureeChgtSelonVolume = None
-        dureeMinChgt, dureeMaxChgt = None, None
-        isDureeDechgtSelonVolume = None  
-        dureeMinDechgt, dureeMaxDechgt = None, None
-        isDureeChgtSelonEquipment = None
-        equipmentAdAttr = None
-        dureeEquipedAd = None
-        isDureeDechgtSelonEquipment = None
-        equipmentZstAttr = None
-        dureeEquipedZST = None
-        isPenaliteTrafic = None
+        self.isDureeChgtSelonVolume = None
+        self.dureeMinChgt, self.dureeMaxChgt = None, None
+        self.isDureeDechgtSelonVolume = None  
+        self.dureeMinDechgt, self.dureeMaxDechgt = None, None
+        self.isDureeChgtSelonEquipment = None
+        self.equipmentAdAttr = None
+        self.dureeEquipedAd = None
+        self.isDureeDechgtSelonEquipment = None
+        self.equipmentZstAttr = None
+        self.dureeEquipedZST = None
+        self.isPenaliteTrafic = None
+        '''
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -226,6 +231,7 @@ class SimuDePOs:
         # Connect tools to push buttons
         self.dlg.pushButton.clicked.connect(self.startChooseLocationAd)
         self.dlg.pushButton_6.clicked.connect(self.startCollecteParBassin)
+        self.dlg.pushButton_7.clicked.connect(self.startConfigChemins)
         self.dlg.pushButton_simul.clicked.connect(self.runCollecte)
         # Menu Gisements de Déchets
         self.dlg.actionLocalisation_des_sources_de_d_chets_post_ouragans.triggered.connect(self.startLocateGisements)
@@ -255,15 +261,47 @@ class SimuDePOs:
         self.equipmentZstAttr = paramInput["equipmentZstAttr"]
         self.dureeEquipedZST = paramInput["dureeEquipedZST"]
         self.isPenaliteTrafic = paramInput["isPenaliteTrafic"]
+        self.nbVehicules = paramInput["nbVehicules"]
+        self.capaMaxMoy  = paramInput["capaMaxMoy"]
     
     def runCollecte(self):
         """ Run waste collection simulation """
-        self.getParamInput()
-        if not self.isCollecteParBassin : # Pas de partitionnement en bassin de collecte
-            print('Collecte pas par bassin')
         
+        self.getParamInput()
+        if self.isCollecteParBassin : # Collecte par bassin de collecte
+            pass
+        else : 
+            dureesCollecte, dureeTotaleCollecte = self.collectDuration() 
+            print('Durée totale de la collecte : {} h'.format(dureeTotaleCollecte))
+            print('Durée de vidage d\'une AD : {} '.format(dureesCollecte[0]))
+          
+    def collectDuration(self):
+        """ 
+        Calcule les durées pour vider chaque zone de dépôt (AD ou ZST)
+        et la durée totale moyenne pour collecter toutes les zones de dépôt.
+        """
+        
+        dureesCollecte = [] # Liste des durées de vidage des zones de chargement
+        dureesVidageZoneDepot = [] # Indicateur de durée totale de la collecte
+        for chemin in self.traj2ZST: # Parcourt les chemins chargés
+            # Calcule la durée de vidage d'une zone de dépôt
+            dureeVidage = dureeVidageZoneDepot(volumeDechets = chemin['volume'], 
+                                                capaMaxVehicule = self.capaMaxMoy,
+                                                distance_km = chemin['distance_km'],
+                                                duree_chgt_h = self.dureeChgt,
+                                                duree_dechgt_h = self.dureeDechgt) 
+            dureesVidageZoneDepot.append(dureeVidage)                                   
+            infoVidage = {'idAD' : chemin['idAD'], 'volume' : chemin['volume'], 
+                        'distance_km' : chemin['distance_km'],
+                        'duree_h' : dureeVidage}
+            dureesCollecte.append(infoVidage)
+        dureeTotaleCollecte = dureeCollecteBassin(dureesVidageZoneDepot, self.nbVehicules, nbHeuresTravailParJour = 8)
+        print('Durée totale de la collecte : {}'.format(dureeTotaleCollecte))
+        return dureesCollecte, dureeTotaleCollecte
+    
     def runSimuDamage(self):
         """Run damage simulation window """
+        
         self.damage_dlg = SimuDamageMainWindow()
         self.damage_dlg.show()
         
@@ -307,6 +345,66 @@ class SimuDePOs:
         if result:
             pass
         
+    def startConfigChemins(self):
+        """ Ouvre une boîte de dialogue pour configurer les colonnes à utiliser dans la couche des chemins """
+        
+        dialog = ConfigAttrCheminsDialog(None)
+        dialog.cheminLayer.setLayer(self.dlg.input_layer_ad_zst.currentLayer())
+        result = dialog.exec_()
+        if result:
+            self.routingInfo = dialog.getParamInput()
+            print(self.routingInfo)
+            self.loadChemins(cheminLayer = self.routingInfo['cheminLayer'], 
+                            originIdField = self.routingInfo['idADField'],
+                            destinationIdField = self.routingInfo['idZSTField'],
+                            distanceField = self.routingInfo['distanceField'],
+                            volumeField = self.routingInfo['volumeField'],
+                            distanceUnit = self.routingInfo['distUnit'],
+                            circuit = 0)
+                    
+    
+    def loadChemins(self, cheminLayer, originIdField, destinationIdField, distanceField, volumeField, distanceUnit = 'm', circuit = 0):
+        """ Charge les chemins entre les zones de dépôt
+        
+        Parameters
+        ------------------
+        cheminLayer: vector layer
+            Couche des chemins calculés entre les zones de dépôts (AD -> ZST ou ZST -> Exutoires)
+        originIdField: str
+            Attribut ID des points de départ des déchets (AD ou ZST selon le circuit)
+        destinationIdField: str
+            Attribut ID des points de destination des déchets (ZST ou exutoires selon le circuit)
+        distanceField: str
+            Attribut de distance des chemins entre les zones de dépôt
+        distanceUnit: str
+            Unité des distances: 'm' si les distances sont en mètres, 'km' si elles sont en kilomètres 
+        volumeField: str
+            Attribut volume de déchets    
+        circuit: int, optional
+            Vaut 0 si circuit AD->ZST (par défaut), vaut 1 si circuit ZST-> exutoire
+            
+        """
+        
+        if circuit == 0: # Trajectoires vers ZST
+            print(cheminLayer.featureCount())
+            self.traj2ZST = []
+            for elem in cheminLayer.getFeatures():
+                if distanceUnit == 'm':
+                    dist_km = float(elem[distanceField])/1000
+                else :
+                    dist_km = elem[distanceField]
+                itineraire = {'idAD': elem[originIdField],
+                             'idZST': elem[destinationIdField],
+                             'distance_km': dist_km,
+                             'volume' : elem[volumeField]
+                            }
+                self.traj2ZST.append(itineraire)
+            print("Trajectoires chargées :\n {}".format(self.traj2ZST))
+        
+        elif circuit == 1: # Trajectoires ZST->ISDND (A faire plus tard)
+            pass
+
+
 FORM_CLASS_LOCATE_GISEMENTS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_localisation_sources_dechets.ui'))
 
@@ -708,6 +806,29 @@ class OptimisationVolumeDistanceDialog(QtWidgets.QDialog, FORM_CLASS_OPTIM):
         """Constructor."""
         super(OptimisationVolumeDistanceDialog, self).__init__(parent)
         self.setupUi(self)  
+        
+FORM_CLASS_CHEMIN, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'dialog_config_chemins_ad_zst.ui'))
+class ConfigAttrCheminsDialog(QtWidgets.QDialog, FORM_CLASS_CHEMIN):
+    def __init__(self, cheminLayer, parent=None):
+        """Constructor."""
+        super(ConfigAttrCheminsDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.cheminLayer.setLayer(None)
+        self.cheminLayer.setLayer(cheminLayer)
+        self.distanceCBox.setFilters(QgsFieldProxyModel.Numeric)
+        self.volumeCBox.setFilters(QgsFieldProxyModel.Numeric)
+    
+    def getParamInput(self):
+        """ Get info about disposal sites routing layer """
+        param = {}
+        param['cheminLayer'] = self.cheminLayer.currentLayer()
+        param['idADField'] = self.idAdCBox.currentText()
+        param['idZSTField'] = self.idZstCBox.currentText()
+        param['distanceField'] = self.distanceCBox.currentText()
+        param['distUnit'] = self.unitCBox.currentText()
+        param['volumeField'] = self.volumeCBox.currentText()
+        return param
 
 # UI Collecte par bassin
 FORM_CLASS_COLLECTE_BASSIN, _ = uic.loadUiType(os.path.join(
