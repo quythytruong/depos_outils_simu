@@ -233,6 +233,7 @@ class SimuDePOs:
         self.dlg.pushButton_6.clicked.connect(self.startCollecteParBassin)
         self.dlg.pushButton_7.clicked.connect(self.startConfigChemins)
         self.dlg.pushButton_simul.clicked.connect(self.runCollecte)
+        self.dlg.pushButtonCalculCheminVersZST.clicked.connect(self.startPlusCourtChemin)
         # Menu Gisements de Déchets
         self.dlg.actionLocalisation_des_sources_de_d_chets_post_ouragans.triggered.connect(self.startLocateGisements)
        
@@ -399,12 +400,22 @@ class SimuDePOs:
                              'volume' : elem[volumeField]
                             }
                 self.traj2ZST.append(itineraire)
-            print("Trajectoires chargées :\n {}".format(self.traj2ZST))
+            #print("Trajectoires chargées :\n {}".format(self.traj2ZST))
         
         elif circuit == 1: # Trajectoires ZST->ISDND (A faire plus tard)
             pass
 
-
+    def startPlusCourtChemin(self):
+        """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins """
+        dialog = PlusCourtChemin()
+        dialog.zonechgtLayerInput.setLayer(self.dlg.suivi_couche_ad.currentLayer())
+        dialog.zoneDechgtLayerInput.setLayer(self.dlg.suivi_couche_zst.currentLayer())
+        result = dialog.exec_()
+        if result:
+            routing_output = dialog.run()
+            QgsProject.instance().addMapLayer(routing_output)
+            dialog.close()
+        
 FORM_CLASS_LOCATE_GISEMENTS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_localisation_sources_dechets.ui'))
 
@@ -843,3 +854,101 @@ class CollecteParBassinDialog(QtWidgets.QDialog, FORM_CLASS_COLLECTE_BASSIN):
         """ Renvoie les données entrées en paramètres """
 
        
+# UI Calcul de plus court chemin
+FORM_CLASS_CALCUL_CHEMIN, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'dialog_pluscourtchemin.ui'))
+class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
+    def __init__(self, parent=None):
+        """Constructor."""
+        super(PlusCourtChemin, self).__init__(parent)
+        self.setupUi(self)  
+        self.roadLayer_CBox.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.zonechgtLayerInput.setLayer(None)
+        self.zoneDechgtLayerInput.setLayer(None)
+    
+    def getDataInput(self):
+        """ Renvoie les données entrées en paramètres """
+        self.roadLayer = self.roadLayer_CBox.currentLayer()
+        self.zoneChgtLayer = self.zonechgtLayerInput.currentLayer()
+        self.zoneDechgtLayer = self.zoneDechgtLayerInput.currentLayer()
+        self.idZoneChgtLayer = self.idFieldCBox.currentText()
+        self.idZoneDechgtLayer = self.idFieldCBox_2.currentText()
+        self.volumeDechets = self.volumeFieldCBox.currentText()
+    
+    def run(self):
+        """ Calcule les plus courts chemins. Requiert l'installation du plugin QNEAT3 """
+        self.getDataInput()
+        # TODO: si les couches de chargement et de déchargement sont des polygones : travailler sur les centroides
+        
+        # Calcul de la matrice des distances
+        paramQNEAT3 = {
+                'INPUT': self.roadLayer,
+                'FROM_POINT_LAYER' : self.zoneChgtLayer,
+                'FROM_ID_FIELD' : self.idZoneChgtLayer,
+                'TO_POINT_LAYER': self.zoneDechgtLayer,
+                'TO_ID_FIELD' : self.idZoneDechgtLayer,
+                'STRATEGY' : 0,
+                'OUTPUT' : 'memory:'
+                }
+        odMatrix = processing.run('qneat3:OdMatrixFromLayersAsLines', paramQNEAT3)['OUTPUT']
+        # S'il y a plus d'une ZST dans le bassin, on sélectionne les chemins de coût minimum dans la matrice de distance
+        if  self.zoneDechgtLayer.featureCount() > 1 : 
+            odMatrix = PlusCourtChemin.getMinCostFromOdMatrix(odMatrix)
+        # Jointure de l'attribut volume
+        print(odMatrix)
+        paramJoin = {
+            'INPUT' : odMatrix,
+            'FIELD': 'origin_id',
+            'INPUT_2': self.zoneChgtLayer,
+            'FIELD_2' : self.idZoneChgtLayer,
+            'FIELDS_TO_COPY' : self.volumeDechets,
+            'METHOD' : 1,
+            'OUTPUT' : 'memory:'}
+        output = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
+        return output
+           
+           
+    def getMinCostFromOdMatrix(odMatrix):
+        """
+            N.B. : Attributs de odMatrix :
+                    origin_id
+                        ID du point d'origine
+                    destination_id 
+                        ID du point d'arrivée
+                    entry_cost 
+                        distance (ou durée) entre le point d'origine et le tronçon de route le plus proche
+                    network_cost
+                        longueur (ou durée) du plus court chemin sur le réseau routier
+                    exit_cost
+                        distance (ou durée) entre le point d'arrivée et le tronçon de route le plus proche
+                    total_cost
+                        distance total (ou durée totale) entre le point d'origine et de départ
+        """
+        # Identifiants des AD
+        paramUniqueValues = {
+                    'INPUT': odMatrix,
+                    'FIELDS' : 'origin_id',
+                    'OUTPUT': 'memory:'
+        }
+        uniqueid = processing.run('qgis:listuniquevalues', paramUniqueValues)['OUTPUT']
+        
+        selected_fid = [] # Liste des plus courts chemins
+        for id in uniqueid.getFeatures():
+            odMatrix.selectByExpression("origin_id={}".format(id['origin_id']))
+            features = odMatrix.selectedFeatures()
+            minCost = features[0]['total_cost']
+            plusCourtChemin = features[0]
+            for feat in features : 
+                print("feat['total_cost'] = {}".format(feat['total_cost']))
+                if feat['total_cost'] is None :
+                    continue
+                if feat['total_cost'] < minCost:
+                    minCost = feat['total_cost']
+                    plusCourtChemin = feat
+            selected_fid.append(plusCourtChemin.id())
+            odMatrix.removeSelection()
+        # Sauvegarde tous les plus courts chemins sélectionnés
+        odMatrix.select(selected_fid)
+        uniqueschemins = processing.run("native:saveselectedfeatures", {'INPUT': odMatrix, 'OUTPUT': 'memory:'})['OUTPUT']
+        uniqueschemins.setCrs(QgsCoordinateReferenceSystem(odMatrix.crs()))
+        return uniqueschemins

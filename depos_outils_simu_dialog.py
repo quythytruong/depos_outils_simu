@@ -25,6 +25,7 @@
 import os
 
 from qgis.PyQt import uic, QtWidgets
+from qgis.core import QgsMapLayerProxyModel
 from .fenetre_principale_depos7 import Ui_MainWindow
 
 
@@ -32,7 +33,8 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, *args, obj=None, **kwargs):
         super(DePosMainWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
-        
+        self.suivi_couche_ad.setFilters(QgsMapLayerProxyModel.PointLayer)
+        self.suivi_couche_zst.setFilters(QgsMapLayerProxyModel.PointLayer)
         self.suivi_couche_ad.setLayer(None)
         self.suivi_couche_zst.setLayer(None)
         self.suivi_couche_exutoire.setLayer(None)

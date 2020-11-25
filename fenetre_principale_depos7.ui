@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>677</width>
-    <height>551</height>
+    <height>557</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -510,7 +510,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
              <x>0</x>
              <y>0</y>
              <width>635</width>
-             <height>365</height>
+             <height>371</height>
             </rect>
            </property>
            <attribute name="label">
@@ -718,11 +718,11 @@ QToolBox::tab:selected { /* italicize selected tabs */
                       <enum>Qt::Horizontal</enum>
                      </property>
                      <property name="sizeType">
-                      <enum>QSizePolicy::Maximum</enum>
+                      <enum>QSizePolicy::Fixed</enum>
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
-                       <width>40</width>
+                       <width>20</width>
                        <height>20</height>
                       </size>
                      </property>
@@ -765,7 +765,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
-                       <width>40</width>
+                       <width>20</width>
                        <height>20</height>
                       </size>
                      </property>
@@ -808,7 +808,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
-                       <width>40</width>
+                       <width>20</width>
                        <height>20</height>
                       </size>
                      </property>
@@ -971,7 +971,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
-                       <width>40</width>
+                       <width>20</width>
                        <height>20</height>
                       </size>
                      </property>
@@ -1014,7 +1014,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
-                       <width>40</width>
+                       <width>20</width>
                        <height>20</height>
                       </size>
                      </property>
@@ -1036,7 +1036,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
                       <bool>false</bool>
                      </property>
                      <property name="sizePolicy">
-                      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
                        <horstretch>0</horstretch>
                        <verstretch>0</verstretch>
                       </sizepolicy>
@@ -1057,7 +1057,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
-                       <width>40</width>
+                       <width>20</width>
                        <height>20</height>
                       </size>
                      </property>
@@ -1099,22 +1099,6 @@ QToolBox::tab:selected { /* italicize selected tabs */
                  </item>
                  <item>
                   <layout class="QHBoxLayout" name="horizontalLayout_42">
-                   <item>
-                    <spacer name="horizontalSpacer_54">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeType">
-                      <enum>QSizePolicy::Maximum</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>20</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
                    <item>
                     <widget class="QCheckBox" name="checkBox_18">
                      <property name="sizePolicy">
@@ -1163,8 +1147,8 @@ QToolBox::tab:selected { /* italicize selected tabs */
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>635</width>
-             <height>393</height>
+             <width>100</width>
+             <height>30</height>
             </rect>
            </property>
            <attribute name="label">
