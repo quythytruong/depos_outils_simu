@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QTableWidgetItem
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -230,7 +230,7 @@ class SimuDePOs:
         self.dlg.show()
         # Connect tools to push buttons
         self.dlg.pushButton.clicked.connect(self.startChooseLocationAd)
-        self.dlg.pushButton_6.clicked.connect(self.startCollecteParBassin)
+        self.dlg.pushButton_4.clicked.connect(self.startActeurParBassin)
         self.dlg.pushButton_7.clicked.connect(self.startConfigChemins)
         self.dlg.pushButton_simul.clicked.connect(self.runCollecte)
         self.dlg.pushButtonCalculCheminVersZST.clicked.connect(self.startPlusCourtChemin)
@@ -327,12 +327,14 @@ class SimuDePOs:
             adLayer = dialog.locateAD()
             QgsProject.instance().addMapLayer(adLayer) # Add output layer to QGIS project
 
-    def startCollecteParBassin(self):
+
+    def startActeurParBassin(self):
         """ Ouvre l'UI de collecte par bassin """
-        dialog = CollecteParBassinDialog()
+        self.paramInput = self.dlg.getInput()
+        dialog = ActeurParBassinDialog(self.paramInput['bassinLayer'], self.paramInput['idBassin'])
         result = dialog.exec_()
         if result:
-            pass
+            self.affectationActeurBassin = dialog.dataAffectations
         
     def startConfigChemins(self):
         """ Ouvre une boîte de dialogue pour configurer les colonnes à utiliser dans la couche des chemins """
@@ -829,19 +831,85 @@ class ConfigAttrCheminsDialog(QtWidgets.QDialog, FORM_CLASS_CHEMIN):
         param['volumeField'] = self.volumeCBox.currentText()
         return param
 
+'''
 # UI Collecte par bassin
 FORM_CLASS_COLLECTE_BASSIN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_CollecteParBassin.ui'))
 class CollecteParBassinDialog(QtWidgets.QDialog, FORM_CLASS_COLLECTE_BASSIN):
+    """ 
+    Définit les acteurs définit les zones de dépôts de chargement/déchargement 
+    dans chaque bassin de collecte.
+    """
+    
     def __init__(self, parent=None):
         """Constructor."""
         super(CollecteParBassinDialog, self).__init__(parent)
         self.setupUi(self)  
+        self.networkLayer_CBox.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.bassinLayer_CBox.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+        self.gisementLayer_CBox.setLayer(None)
+        self.zstLayer_CBox.setLayer(None)
+        
     
     def getDataInput(self):
         """ Renvoie les données entrées en paramètres """
-
-       
+'''
+# UI Acteurs par bassin
+FORM_CLASS_ACTEUR_BASSIN, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'dialog_acteurParBassin.ui'))
+class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
+    """ 
+    Définit les acteurs définit les zones de dépôts de chargement/déchargement 
+    dans chaque bassin de collecte.
+    """
+    
+    def __init__(self, bassinLayer, idBassin, parent=None):
+        """Constructor."""
+        super(ActeurParBassinDialog, self).__init__(parent)
+        self.setupUi(self)  
+        self.bassinLayer_CBox.setLayer(bassinLayer)
+        self.updateBassinID(idBassin)
+        self.mQgsFileWidget.fileChanged.connect(self.importCSV)
+        self.dataAffectation = []
+    
+    def updateBassinID(self, idBassin):
+        """ Compte le nombre de bassins et met à jour la colonne du QTableWidget """
+        bassins = self.bassinLayer_CBox.currentLayer()
+        self.tableWidget.setRowCount(bassins.featureCount())
+        nrow = 0
+        for b in bassins.getFeatures():
+            newitem = QTableWidgetItem(str(b[idBassin]))
+            self.tableWidget.setItem(nrow, 0, newitem)
+            nrow = nrow+1 
+    
+    def importCSV(self):
+        """ Importe un tableau sous forme de fichier CSV """
+        import csv
+        csvFilePath = self.mQgsFileWidget.filePath()
+        #QtWidgets.QMessageBox.information(None, "Fin de calcul", self.mQgsFileWidget.filePath())
+        print(" Début ")
+        with open(csvFilePath, newline='') as csvfile:
+            csv_reader = csv.reader(csvfile, delimiter=';')
+            rows = list(csv_reader)
+            totalrows = len(rows) # Nombre de lignes
+            #print('totalrows : {}'.format(totalrows))
+            self.tableWidget.setRowCount(totalrows-1)
+            for i in range(totalrows):
+                if i ==0 :
+                    continue
+                row = rows[i]
+                for j in range(len(row)):
+                    item = QtWidgets.QTableWidgetItem(row[j])
+                    #print(row[j])
+                    self.tableWidget.setItem(i-1, j, item)
+            self.dataAffectation=  rows[1::] # A stocker dans le modèle de données
+            print(self.dataAffectation)
+            
+    def getDataInput(self):
+        """ Récupère les informations du tableau des affectations """
+        # TODO
+        pass
+        
 # UI Calcul de plus court chemin
 FORM_CLASS_CALCUL_CHEMIN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_pluscourtchemin.ui'))
@@ -851,6 +919,7 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         super(PlusCourtChemin, self).__init__(parent)
         self.setupUi(self)  
         self.roadLayer_CBox.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.roadLayer_CBox.setLayer(None)
         self.zonechgtLayerInput.setLayer(None)
         self.zoneDechgtLayerInput.setLayer(None)
     

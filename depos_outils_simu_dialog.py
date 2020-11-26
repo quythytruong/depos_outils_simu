@@ -27,7 +27,7 @@ import os
 from qgis.PyQt import uic, QtWidgets
 from qgis.PyQt.QtWidgets import QTableWidgetItem
 from qgis.core import QgsMapLayerProxyModel
-from .fenetre_principale_depos7 import Ui_MainWindow
+from .fenetre_principale_depos8 import Ui_MainWindow
 
 class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, *args, obj=None, **kwargs):
@@ -39,10 +39,25 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.suivi_couche_zst.setLayer(None)
         self.suivi_couche_exutoire.setLayer(None)
         self.input_layer_ad_zst.setLayer(None)
-        # Push buttons
-        self.partition_radio_on.toggled.connect(lambda : self.pushButton_6.setEnabled(True)) # Collecte par bassin : ON
-        self.partition_radio_off.toggled.connect(lambda : self.pushButton_6.setEnabled(False)) # Collecte par bassin : OFF
+        self.groupBox_5.setHidden(True)
+        self.pushButton_4.setHidden(True)
+        # Collecte par bassins
+        self.partition_radio_on.toggled.connect(lambda : self.groupBox_5.setHidden(False)) # Collecte par bassin : ON
+        self.partition_radio_on.toggled.connect(lambda : self.pushButton_4.setHidden(False)) # Collecte par bassin : ON
+        self.partition_radio_off.toggled.connect(lambda : self.groupBox_5.setHidden(True)) # Collecte par bassin : OFF
+        self.partition_radio_off.toggled.connect(lambda : self.pushButton_4.setHidden(True)) # Collecte par bassin : OFF
+        self.bassinLayer_CBox.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+        self.bassinLayer_CBox.setLayer(None)
+        '''
+        self.partition_radio_on.toggled.connect(lambda : self.nbVehicules_spinBox.setEnabled(False))
+        self.partition_radio_on.toggled.connect(lambda : self.capaMaxMoy_doubleSpinBox.setEnabled(False))
+        self.partition_radio_on.toggled.connect(lambda : self.capaMaxMoy_doubleSpinBox.setEnabled(False))
+        self.partition_radio_off.toggled.connect(lambda : self.groupBox_5.setEnabled(False)) 
+        self.partition_radio_off.toggled.connect(lambda : self.nbVehicules_spinBox.setEnabled(True))
+        self.partition_radio_off.toggled.connect(lambda : self.capaMaxMoy_doubleSpinBox.setEnabled(True))
         self.pushButton_5.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab))
+        '''
+        self.okModalitesCollecte_pushButton.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab))        
         # Command line buttons        
         self.command_param_durees.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab_durees))
         self.command_voir_resultats_simu.clicked.connect(lambda: self.fenetre_ppale.setCurrentWidget(self.tab3_result))
@@ -59,7 +74,8 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         zdLayer3 = self.suivi_couche_exutoire.currentLayer()
         
         isCollecteParBassin = self.partition_radio_on.isChecked() # Collecte par bassin 
-        
+        bassinLayer = self.bassinLayer_CBox.currentLayer()
+        idBassinAttr = self.idBassin_CBox.currentText()
         chemin2ZSTLayer = self.input_layer_ad_zst.currentLayer() # Couche des chemins AD-ZST
         
         # Durées des opérations
@@ -67,18 +83,10 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         dureeDechgt = self.input_duree_base_dechgt.value()
         # Durées des opérations : options avancées
         isDureeChgtSelonVolume = self.check_duree_selon_volume.isChecked() # Durée en fonction du volume
-        dureeMinChgt = self.input_duree_min.value()
-        dureeMaxChgt = self.input_duree_max.value()
         isDureeDechgtSelonVolume = self.check_duree_selon_volume_2.isChecked()        
-        dureeMinDechgt = self.input_duree_min_4.value()
-        dureeMaxDechgt = self.input_duree_max_4.value()
 
         isDureeChgtSelonEquipment = self.checkBox_duree_reduite.isChecked() # Durée en fonction de l'équipement
-        equipmentAdAttr = self.input_filter_attr_2.currentText()
-        dureeEquipedAd = self.input_duree_reduite_2.value()
         isDureeDechgtSelonEquipment = self.checkBox_duree_reduite_4.isChecked()
-        equipmentZstAttr = self.mFieldExpressionWidget_7.currentText() 
-        dureeEquipedZST = self.doubleSpinBox_25.value()
         isPenaliteTrafic = self.checkBox_18.isChecked() # Pénalité due au trafic
         
         # Acteurs de collecte
@@ -89,16 +97,12 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         "zdLayer1" : zdLayer1, "zdLayer2" : zdLayer2, "zdLayer3" : zdLayer3,
         "chemin2ZSTLayer" : chemin2ZSTLayer,
         "isCollecteParBassin" : isCollecteParBassin,
+        "bassinLayer" : bassinLayer, "idBassin" :idBassinAttr,
         "dureeChgt" : dureeChgt, "dureeDechgt" : dureeDechgt,
         "isDureeChgtSelonVolume" : isDureeChgtSelonVolume,
-        "dureeMinChgt" : dureeMinChgt, "dureeMaxChgt" : dureeMaxChgt,
         "isDureeDechgtSelonVolume" : isDureeDechgtSelonVolume,
-        "dureeMinDechgt" : dureeMinDechgt, "dureeMaxDechgt" : dureeMaxDechgt,
         "isDureeChgtSelonEquipment" : isDureeChgtSelonEquipment,
-        "equipmentAdAttr" : equipmentAdAttr, "dureeEquipedAd" : dureeEquipedAd,
         "isDureeDechgtSelonEquipment" : isDureeDechgtSelonEquipment,
-        "equipmentZstAttr" : equipmentZstAttr,
-        "dureeEquipedZST" : dureeEquipedZST,
         "isPenaliteTrafic" : isPenaliteTrafic,
         "nbVehicules" : nbVehicules,
         "capaMaxMoy" : capaMaxMoy
@@ -110,14 +114,9 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         "isCollecteParBassin" : False,
         "dureeChgt" : 0, "dureeDechgt" : 0,
         "isDureeChgtSelonVolume" : False,
-        "dureeMinChgt" : 0, "dureeMaxChgt" : 0,
         "isDureeDechgtSelonVolume" : False,
-        "dureeMinDechgt" : 0, "dureeMaxDechgt" : 0,
         "isDureeChgtSelonEquipment" : False,
-        "equipmentAdAttr" : None, "dureeEquipedAd" : 0,
         "isDureeDechgtSelonEquipment" : False,
-        "equipmentZstAttr" : None,
-        "dureeEquipedZST" : 0,
         "isPenaliteTrafic" : False,
         "nbVehicules" : 0,
         "capaMaxMoy" : 0}):
@@ -173,36 +172,3 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 
                 newitem = QTableWidgetItem(str(cellValue))
                 self.tableWidget.setItem(nrow, ncol, newitem)
-                
-        
-        '''
-        horHeaders = [] # Entête du tableau
-        for head in resultDureeCollecte[0].keys():
-            horHeaders.append(head)
-        #print('horHeaders : {}'.format(horHeaders))
-        self.tableWidget.setColumnCount(len(horHeaders))
-        self.tableWidget.setHorizontalHeaderLabels(horHeaders)
-        print('Nombre de colonnes dans le tableau : {}'.format(len(horHeaders)))
-        
-        for row in range(len(resultDureeCollecte)):
-            for duration in resultDureeCollecte[row].keys():
-                print(duration)
-                print(resultDureeCollecte[row][duration])
-         
-        
-        no_row = 0
-        for duration in resultDureeCollecte:
-            print(duration)
-            no_col = 0
-            for k in duration.keys():
-                print(k)
-                print(str(duration[k]))
-                newitem = QTableWidgetItem(str(duration[k]))
-                print('Ajout de {}'.format(str(duration[k])))
-                self.tableWidget.setItem(no_row, no_col, newitem)
-                print('Dans le tableau à la ligne {}, colonne {}'.format(no_row, no_col))
-                no_col = no_col + 1
-            no_row = no_row + 1
-        print('Nombre de lignes dans le tableau : {}'.format(self.tableWidget.rowCount()))           
-        '''
-
