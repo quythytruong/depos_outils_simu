@@ -21,9 +21,9 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QMessageBox
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -237,45 +237,33 @@ class SimuDePOs:
         # Menu Gisements de Déchets
         self.dlg.actionLocalisation_des_sources_de_d_chets_post_ouragans.triggered.connect(self.startLocateGisements)
        
-    def getParamInput(self):
-        """ Retrieve parameter input from UI """
-        
-        paramInput = self.dlg.getInput()   
-        self.simuCircuit1 = paramInput["simuCircuit1"]
-        self.simuCircuit2 = paramInput["simuCircuit2"]
-        self.zdLayer1 = paramInput["zdLayer1"]
-        self.zdLayer2 = paramInput["zdLayer2"] 
-        self.zdLayer3 = paramInput["zdLayer3"]
-        self.isCollecteParBassin = paramInput["isCollecteParBassin"]
-        self.dureeChgt = paramInput["dureeChgt"] 
-        self.dureeDechgt = paramInput["dureeDechgt"]
-        self.isDureeChgtSelonVolume = paramInput["isDureeChgtSelonVolume"]
-        self.dureeMinChgt = paramInput["dureeMinChgt"]
-        self.dureeMaxChgt = paramInput["dureeMaxChgt"]
-        self.isDureeDechgtSelonVolume = paramInput["isDureeDechgtSelonVolume"]
-        self.dureeMinChgt = paramInput["dureeMinDechgt"] 
-        self.dureeMaxChgt = paramInput["dureeMaxDechgt"]
-        self.isDureeChgtSelonEquipment = paramInput["isDureeChgtSelonEquipment"]
-        self.equipmentAdAttr = paramInput["equipmentAdAttr"]
-        self.dureeEquipedAd = paramInput["dureeEquipedAd"]
-        self.isDureeDechgtSelonEquipment = paramInput["isDureeDechgtSelonEquipment"]
-        self.equipmentZstAttr = paramInput["equipmentZstAttr"]
-        self.dureeEquipedZST = paramInput["dureeEquipedZST"]
-        self.isPenaliteTrafic = paramInput["isPenaliteTrafic"]
-        self.nbVehicules = paramInput["nbVehicules"]
-        self.capaMaxMoy  = paramInput["capaMaxMoy"]
     
     def runCollecte(self):
         """ Run waste collection simulation """
         
-        self.getParamInput()
-        if self.isCollecteParBassin : # Collecte par bassin de collecte
+        self.paramInput = self.dlg.getInput() 
+        if self.paramInput["isCollecteParBassin"]:
+        #if self.isCollecteParBassin : # Collecte par bassin de collecte
             pass
         else : 
-            dureesCollecte, dureeTotaleCollecte = self.collectDuration() 
-            print('Durée totale de la collecte : {} h'.format(dureeTotaleCollecte))
-            print('Durée de vidage d\'une AD : {} '.format(dureesCollecte[0]))
-          
+            self.dureesCollecte, self.dureeTotaleCollecte = self.collectDuration() 
+            print('Durée totale de la collecte : {} h'.format(self.dureeTotaleCollecte))
+            print('Durée de vidage d\'une AD : {} '.format(self.dureesCollecte[0]))
+            QMessageBox.information(None, 'Fin de calcul', 'Simulation de collecte terminée !')
+            # Remplit l'onglet Résultats
+            self.dlg.recapScenario(paramScenario = self.paramInput)
+            
+            # Formate les résultats de durées de collecte globale
+            # Récupérer le header : clés du dictionnaires
+            headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte.keys()]
+            # Liste des durées
+            dureesTotales = []
+            for k in headerDureesTotales:
+                dureesTotales.append([self.dureeTotaleCollecte[k]])
+            self.dlg.displayResult(resultSimu = dureesTotales, header = headerDureesTotales)
+            # Formate les résultats de durées de collecte par zone de dépôt
+        
+        
     def collectDuration(self):
         """ 
         Calcule les durées pour vider chaque zone de dépôt (AD ou ZST)
@@ -287,17 +275,17 @@ class SimuDePOs:
         for chemin in self.traj2ZST: # Parcourt les chemins chargés
             # Calcule la durée de vidage d'une zone de dépôt
             dureeVidage = dureeVidageZoneDepot(volumeDechets = chemin['volume'], 
-                                                capaMaxVehicule = self.capaMaxMoy,
+                                                capaMaxVehicule = self.paramInput["capaMaxMoy"],
                                                 distance_km = chemin['distance_km'],
-                                                duree_chgt_h = self.dureeChgt,
-                                                duree_dechgt_h = self.dureeDechgt) 
+                                                duree_chgt_h = self.paramInput["dureeChgt"],
+                                                duree_dechgt_h = self.paramInput["dureeDechgt"]) 
             dureesVidageZoneDepot.append(dureeVidage)                                   
-            infoVidage = {'idAD' : chemin['idAD'], 'volume' : chemin['volume'], 
-                        'distance_km' : chemin['distance_km'],
-                        'duree_h' : dureeVidage}
+            infoVidage = {'id_chgt' : chemin['idAD'], 'id_dechgt': chemin['idZST'],
+                        'volume' : chemin['volume'], 
+                        'distance_km' : chemin['distance_km'], 'duree_h' : dureeVidage}
             dureesCollecte.append(infoVidage)
-        dureeTotaleCollecte = dureeCollecteBassin(dureesVidageZoneDepot, self.nbVehicules, nbHeuresTravailParJour = 8)
-        print('Durée totale de la collecte : {}'.format(dureeTotaleCollecte))
+        dureeTotaleCollecte = dureeCollecteBassin(dureesVidageZoneDepot, self.paramInput["nbVehicules"], nbHeuresTravailParJour = 8)
+        dureeTotaleCollecte['nbHeuresTravailParJour'] = 8
         return dureesCollecte, dureeTotaleCollecte
     
     def runSimuDamage(self):
@@ -362,7 +350,7 @@ class SimuDePOs:
                             volumeField = self.routingInfo['volumeField'],
                             distanceUnit = self.routingInfo['distUnit'],
                             circuit = 0)
-                    
+            QMessageBox.information(None, "Fin de calcul", "Données chargées !")                    
     
     def loadChemins(self, cheminLayer, originIdField, destinationIdField, distanceField, volumeField, distanceUnit = 'm', circuit = 0):
         """ Charge les chemins entre les zones de dépôt
@@ -952,3 +940,4 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         uniqueschemins = processing.run("native:saveselectedfeatures", {'INPUT': odMatrix, 'OUTPUT': 'memory:'})['OUTPUT']
         uniqueschemins.setCrs(QgsCoordinateReferenceSystem(odMatrix.crs()))
         return uniqueschemins
+        

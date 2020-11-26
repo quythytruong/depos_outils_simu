@@ -25,9 +25,9 @@
 import os
 
 from qgis.PyQt import uic, QtWidgets
+from qgis.PyQt.QtWidgets import QTableWidgetItem
 from qgis.core import QgsMapLayerProxyModel
 from .fenetre_principale_depos7 import Ui_MainWindow
-
 
 class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self, *args, obj=None, **kwargs):
@@ -60,6 +60,8 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         
         isCollecteParBassin = self.partition_radio_on.isChecked() # Collecte par bassin 
         
+        chemin2ZSTLayer = self.input_layer_ad_zst.currentLayer() # Couche des chemins AD-ZST
+        
         # Durées des opérations
         dureeChgt = self.input_chgt_duree_base.value()
         dureeDechgt = self.input_duree_base_dechgt.value()
@@ -85,6 +87,7 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         
         return { "simuCircuit1" : simuCircuit1, "simuCircuit2" : simuCircuit2,
         "zdLayer1" : zdLayer1, "zdLayer2" : zdLayer2, "zdLayer3" : zdLayer3,
+        "chemin2ZSTLayer" : chemin2ZSTLayer,
         "isCollecteParBassin" : isCollecteParBassin,
         "dureeChgt" : dureeChgt, "dureeDechgt" : dureeDechgt,
         "isDureeChgtSelonVolume" : isDureeChgtSelonVolume,
@@ -101,4 +104,105 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         "capaMaxMoy" : capaMaxMoy
         }
         
+    def recapScenario(self, paramScenario = {"simuCircuit1" : False, "simuCircuit2" : False,
+        "zdLayer1" : None, "zdLayer2" : None, "zdLayer3" : None,
+        "chemin2ZSTLayer" : None,
+        "isCollecteParBassin" : False,
+        "dureeChgt" : 0, "dureeDechgt" : 0,
+        "isDureeChgtSelonVolume" : False,
+        "dureeMinChgt" : 0, "dureeMaxChgt" : 0,
+        "isDureeDechgtSelonVolume" : False,
+        "dureeMinDechgt" : 0, "dureeMaxDechgt" : 0,
+        "isDureeChgtSelonEquipment" : False,
+        "equipmentAdAttr" : None, "dureeEquipedAd" : 0,
+        "isDureeDechgtSelonEquipment" : False,
+        "equipmentZstAttr" : None,
+        "dureeEquipedZST" : 0,
+        "isPenaliteTrafic" : False,
+        "nbVehicules" : 0,
+        "capaMaxMoy" : 0}):
+            """ Récapitule le scénario simulé dans l'onglet "Résultats" de l'interface 
+            
+            Parameters
+            ----------
+            paramScenario : dict
+                Paramétrage du scénario simulé.
+            """
+            # Circuit simulé
+            self.recap_circuit1checkBox.setChecked(paramScenario["simuCircuit1"])
+            self.recap_circuit2checkBox.setChecked(paramScenario["simuCircuit2"])
+            # Zones de dépôt
+            self.recap_gisementLayer.setLayer(paramScenario["zdLayer1"])
+            self.recap_zstLayer.setLayer(paramScenario["zdLayer2"])
+            self.recap_exutoireLayer.setLayer(paramScenario["zdLayer3"])
+            # Acteurs
+            self.recap_nbVehicules.setValue(paramScenario["nbVehicules"])
+            self.recap_capaMaxMoy.setValue(paramScenario["capaMaxMoy"])            
+            self.recap_collecteParBassin_checkBox.setChecked(paramScenario["isCollecteParBassin"]) # Collecte par bassin
+            self.recap_cheminLayer.setLayer(paramScenario["chemin2ZSTLayer"]) # Chemins vers les ZST
+            # Durées de chargement / déchargement
+            self.recap_dureeChgt.setValue(paramScenario["dureeChgt"])
+            self.recap_dureeDechgt.setValue(paramScenario["dureeDechgt"])
+            self.recap_dureeChgtFoncVolume.setChecked(paramScenario["isDureeChgtSelonVolume"])
+            self.recap_dureeDechgtFoncVolume.setChecked(paramScenario["isDureeDechgtSelonVolume"])
+            self.recap_dureeChgFoncEquipt.setChecked(paramScenario["isDureeDechgtSelonEquipment"])
+            self.recap_penaliteTrafic.setChecked(paramScenario["isPenaliteTrafic"])
+    
+    def displayResult(self, resultSimu, header = None):
+        """ Affiche le résultat de la simulation dans l'onglet Résultats de l'interface 
         
+        Parameters
+        ----------
+        resultSimu : list of list
+        
+        header : list
+            Entête du tableau, contient les noms de colonnes
+            
+        
+        """
+        if not header is None:
+            self.tableWidget.setColumnCount(len(header))
+            self.tableWidget.setHorizontalHeaderLabels(header)
+        self.tableWidget.setRowCount(len(resultSimu[0]))
+        for ncol in range(len(resultSimu)):
+            column = resultSimu[ncol]
+            for nrow in range(len(column)):
+                cellValue = column[nrow]
+                if isinstance(cellValue, float):
+                    cellValue = round(cellValue, 2)
+                
+                newitem = QTableWidgetItem(str(cellValue))
+                self.tableWidget.setItem(nrow, ncol, newitem)
+                
+        
+        '''
+        horHeaders = [] # Entête du tableau
+        for head in resultDureeCollecte[0].keys():
+            horHeaders.append(head)
+        #print('horHeaders : {}'.format(horHeaders))
+        self.tableWidget.setColumnCount(len(horHeaders))
+        self.tableWidget.setHorizontalHeaderLabels(horHeaders)
+        print('Nombre de colonnes dans le tableau : {}'.format(len(horHeaders)))
+        
+        for row in range(len(resultDureeCollecte)):
+            for duration in resultDureeCollecte[row].keys():
+                print(duration)
+                print(resultDureeCollecte[row][duration])
+         
+        
+        no_row = 0
+        for duration in resultDureeCollecte:
+            print(duration)
+            no_col = 0
+            for k in duration.keys():
+                print(k)
+                print(str(duration[k]))
+                newitem = QTableWidgetItem(str(duration[k]))
+                print('Ajout de {}'.format(str(duration[k])))
+                self.tableWidget.setItem(no_row, no_col, newitem)
+                print('Dans le tableau à la ligne {}, colonne {}'.format(no_row, no_col))
+                no_col = no_col + 1
+            no_row = no_row + 1
+        print('Nombre de lignes dans le tableau : {}'.format(self.tableWidget.rowCount()))           
+        '''
+
