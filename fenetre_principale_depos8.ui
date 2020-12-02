@@ -987,8 +987,8 @@ QToolBox::tab:selected { /* italicize selected tabs */
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>468</width>
-             <height>312</height>
+             <width>100</width>
+             <height>30</height>
             </rect>
            </property>
            <attribute name="label">
@@ -1637,7 +1637,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
            </attribute>
            <layout class="QHBoxLayout" name="horizontalLayout_26">
             <item>
-             <widget class="QTableView" name="tableView"/>
+             <widget class="QTableWidget" name="tableWidget_3"/>
             </item>
            </layout>
           </widget>
@@ -1647,7 +1647,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
            </attribute>
            <layout class="QHBoxLayout" name="horizontalLayout_32">
             <item>
-             <widget class="QTableView" name="tableView_2"/>
+             <widget class="QTableWidget" name="tableWidget_4"/>
             </item>
            </layout>
           </widget>

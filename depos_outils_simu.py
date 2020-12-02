@@ -243,31 +243,35 @@ class SimuDePOs:
         
         self.paramInput = self.dlg.getInput() 
         if self.paramInput["isCollecteParBassin"]:
-        #if self.isCollecteParBassin : # Collecte par bassin de collecte
-            pass
+            QMessageBox.information(None, 'TODO', 'Collecte par bassins !')
         else : 
             self.dureesCollecte, self.dureeTotaleCollecte = self.collectDuration() 
             print('Durée totale de la collecte : {} h'.format(self.dureeTotaleCollecte))
-            print('Durée de vidage d\'une AD : {} '.format(self.dureesCollecte[0]))
             QMessageBox.information(None, 'Fin de calcul', 'Simulation de collecte terminée !')
-            # Remplit l'onglet Résultats
-            self.dlg.recapScenario(paramScenario = self.paramInput)
-            
+            # Affichage dans l'onglet Résultats
+            self.dlg.recapScenario(paramScenario = self.paramInput) # Récapitule le scénario simulé           
             # Formate les résultats de durées de collecte globale
-            # Récupérer le header : clés du dictionnaires
-            headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte.keys()]
-            # Liste des durées
-            dureesTotales = []
+            headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte.keys()] # Récupérer le header : clés du dictionnaire            
+            #dureesTotales = list(self.dureeTotaleCollecte.values())           
+            dureesTotales = [] # Liste des durées            
             for k in headerDureesTotales:
                 dureesTotales.append([self.dureeTotaleCollecte[k]])
             self.dlg.displayResult(resultSimu = dureesTotales, header = headerDureesTotales)
-            # Formate les résultats de durées de collecte par zone de dépôt
-        
+            # Affichage dans l'onglet Visualisation
+            headerDureesZones = [key_dict for key_dict in self.dureesCollecte[0].keys()]
+            dureesZones = []
+            for d in self.dureesCollecte:
+                dureesZones.append(list(d.values()))
+            self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones)
+        out1, out2 = self.outputLayer() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
+        QgsProject.instance().addMapLayer(out1)
+        QgsProject.instance().addMapLayer(out2)
         
     def collectDuration(self):
         """ 
         Calcule les durées pour vider chaque zone de dépôt (AD ou ZST)
         et la durée totale moyenne pour collecter toutes les zones de dépôt.
+        
         """
         
         dureesCollecte = [] # Liste des durées de vidage des zones de chargement
@@ -281,15 +285,88 @@ class SimuDePOs:
                                                 duree_dechgt_h = self.paramInput["dureeDechgt"]) 
             dureesVidageZoneDepot.append(dureeVidage)                                   
             infoVidage = {'id_chgt' : chemin['idAD'], 'id_dechgt': chemin['idZST'],
-                        'volume' : chemin['volume'], 
+                        'volume_m3' : chemin['volume'], 
                         'distance_km' : chemin['distance_km'], 'duree_h' : dureeVidage}
             dureesCollecte.append(infoVidage)
         dureeTotaleCollecte = dureeCollecteBassin(dureesVidageZoneDepot, self.paramInput["nbVehicules"], nbHeuresTravailParJour = 8)
         dureeTotaleCollecte['nbHeuresTravailParJour'] = 8
         return dureesCollecte, dureeTotaleCollecte
     
+    def outputLayer(self):
+        """
+        Génère des couches de données en fin de simulation.
+        
+        """
+        if self.paramInput['simuCircuit1']:
+            """
+            Reprend la couche des AD en y ajoutant une colonne de durée de vidage de la zone de dépôt
+            """
+            # Duplique la couche de ZST la couche d'entrée : 
+            # Sélectionne toutes les entités et les exporte dans une nouvelle couche
+            self.paramInput['zdLayer1'].selectAll()
+            adOutputLayer = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer1'], 'OUTPUT': 'memory:'})['OUTPUT']
+            adOutputLayer.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer1'].crs()))
+            self.unselectAll() # Dé-sélectionne toutes les entités
+            
+            # Ajoute un nouveau champ
+            adOutputLayerPrv = adOutputLayer.dataProvider()
+            adOutputLayerPrv.addAttributes([QgsField('duree_h',QVariant.Double)])
+            adOutputLayer.updateFields()
+            adOutputLayer.startEditing()
+            for feat in adOutputLayer.getFeatures():
+                idAD = feat[self.idZoneChgtLayer]
+                for resultat in self.dureesCollecte:
+                    if resultat['id_chgt'] == idAD:
+                        feat['duree_h'] = resultat['duree_h']
+                        adOutputLayer.updateFeature(feat)
+                        break
+            adOutputLayer.commitChanges()
+            adOutputLayer.setName('Zones de chargement')
+            
+            """
+            Reprend la couche des ZST en y ajoutant plusieurs colonnes pour indiquer:
+            - la durée pour collecter toutes les AD (en heures) : correspond à la durée max de vidage d'une AD
+            - le volume total de déchets apportés sur chaque ZST
+            - si la collecte s'est fait par bassin : indiquer l'identifiant du bassin
+            """
+            # Duplique la couche de ZST la couche d'entrée : 
+            # Sélectionne toutes les entités et les exporte dans une nouvelle couche
+            self.paramInput['zdLayer2'].selectAll()
+            zstOutputLayer = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
+            zstOutputLayer.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
+            self.unselectAll() # Dé-sélectionne toutes les entités
+            
+            # Ajoute un champ "durée de collecte" et un champs "volume total de déchets"
+            zstOutputLayerPrv = zstOutputLayer.dataProvider()
+            zstOutputLayerPrv.addAttributes([QgsField('duree_h',QVariant.Double),QgsField('vol_dechet_m3',QVariant.Double)])
+            zstOutputLayer.updateFields()
+            #print(zstOutputLayer.fields().names())
+            zstOutputLayer.startEditing()
+            for feat in zstOutputLayer.getFeatures():                
+                volTotal = 0
+                dureeMax = 0
+                idZST = feat[self.idZoneDechgtLayer]
+                for resultat in self.dureesCollecte:     
+                    if resultat['id_dechgt'] == idZST:
+                        volTotal = volTotal + resultat['volume']
+                        if resultat['duree_h'] > dureeMax :
+                            dureeMax = resultat['duree_h']
+                feat['duree_h'] = dureeMax
+                feat['vol_dechet_m3'] = volTotal
+                zstOutputLayer.updateFeature(feat)   
+            zstOutputLayer.commitChanges()
+            
+            # Extrait uniquement les zones de dépôt qui ont reçu des déchets
+            param_extract = {'INPUT' : zstOutputLayer,
+            'EXPRESSION' : 'vol_dechet_m3 <>0',
+            'OUTPUT': 'memory:'}
+            extractOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
+            extractOutput.setName('Zones de déchargement')
+            
+            return adOutputLayer, extractOutput
+    
     def runSimuDamage(self):
-        """Run damage simulation window """
+        """ Run damage simulation window """
         
         self.damage_dlg = SimuDamageMainWindow()
         self.damage_dlg.show()
@@ -334,7 +411,8 @@ class SimuDePOs:
         dialog = ActeurParBassinDialog(self.paramInput['bassinLayer'], self.paramInput['idBassin'])
         result = dialog.exec_()
         if result:
-            self.affectationActeurBassin = dialog.dataAffectations
+            self.affectationActeurBassin = dialog.dataAffectation
+            print(self.affectationActeurBassin)
         
     def startConfigChemins(self):
         """ Ouvre une boîte de dialogue pour configurer les colonnes à utiliser dans la couche des chemins """
@@ -397,15 +475,30 @@ class SimuDePOs:
 
     def startPlusCourtChemin(self):
         """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins """
-        dialog = PlusCourtChemin()
+        
+        self.paramInput = self.dlg.getInput()
+        dialog = PlusCourtChemin(isCollecteParBassin = self.paramInput['isCollecteParBassin'], idBassin = self.paramInput['idBassin'])
         dialog.zonechgtLayerInput.setLayer(self.dlg.suivi_couche_ad.currentLayer())
         dialog.zoneDechgtLayerInput.setLayer(self.dlg.suivi_couche_zst.currentLayer())
         result = dialog.exec_()
         if result:
             routing_output = dialog.run()
             QgsProject.instance().addMapLayer(routing_output)
+            # Récupère certains paramètres d'entrées nécessaires pour calculer les couches de sortie de simulation
+            self.idZoneDechgtLayer = dialog.idZoneDechgtLayer # ID de la zone de déchargement
+            self.idZoneChgtLayer = dialog.idZoneChgtLayer # ID de la zone de chargement
+            self.volumeAttr = dialog.volumeDechets # Attribut volume de déchets
             dialog.close()
+            
+    
+    def unselectAll(self):
+        """ Désélectionne toutes les entités """
         
+        for a in iface.attributesToolBar().actions():
+                if a.objectName() == 'mActionDeselectAll':
+                    a.trigger()
+                    break
+                    
 FORM_CLASS_LOCATE_GISEMENTS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_localisation_sources_dechets.ui'))
 
@@ -831,29 +924,6 @@ class ConfigAttrCheminsDialog(QtWidgets.QDialog, FORM_CLASS_CHEMIN):
         param['volumeField'] = self.volumeCBox.currentText()
         return param
 
-'''
-# UI Collecte par bassin
-FORM_CLASS_COLLECTE_BASSIN, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'dialog_CollecteParBassin.ui'))
-class CollecteParBassinDialog(QtWidgets.QDialog, FORM_CLASS_COLLECTE_BASSIN):
-    """ 
-    Définit les acteurs définit les zones de dépôts de chargement/déchargement 
-    dans chaque bassin de collecte.
-    """
-    
-    def __init__(self, parent=None):
-        """Constructor."""
-        super(CollecteParBassinDialog, self).__init__(parent)
-        self.setupUi(self)  
-        self.networkLayer_CBox.setFilters(QgsMapLayerProxyModel.LineLayer)
-        self.bassinLayer_CBox.setFilters(QgsMapLayerProxyModel.PolygonLayer)
-        self.gisementLayer_CBox.setLayer(None)
-        self.zstLayer_CBox.setLayer(None)
-        
-    
-    def getDataInput(self):
-        """ Renvoie les données entrées en paramètres """
-'''
 # UI Acteurs par bassin
 FORM_CLASS_ACTEUR_BASSIN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_acteurParBassin.ui'))
@@ -875,19 +945,19 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
     def updateBassinID(self, idBassin):
         """ Compte le nombre de bassins et met à jour la colonne du QTableWidget """
         bassins = self.bassinLayer_CBox.currentLayer()
-        self.tableWidget.setRowCount(bassins.featureCount())
-        nrow = 0
-        for b in bassins.getFeatures():
-            newitem = QTableWidgetItem(str(b[idBassin]))
-            self.tableWidget.setItem(nrow, 0, newitem)
-            nrow = nrow+1 
-    
+        if not bassins is None:
+            self.tableWidget.setRowCount(bassins.featureCount())
+            nrow = 0
+            for b in bassins.getFeatures():
+                newitem = QTableWidgetItem(str(b[idBassin]))
+                self.tableWidget.setItem(nrow, 0, newitem)
+                nrow = nrow+1 
+        
     def importCSV(self):
-        """ Importe un tableau sous forme de fichier CSV """
+        """ Importe un tableau d'affectations acteurs/bassins sous forme de fichier CSV """
         import csv
         csvFilePath = self.mQgsFileWidget.filePath()
         #QtWidgets.QMessageBox.information(None, "Fin de calcul", self.mQgsFileWidget.filePath())
-        print(" Début ")
         with open(csvFilePath, newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=';')
             rows = list(csv_reader)
@@ -903,7 +973,7 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
                     #print(row[j])
                     self.tableWidget.setItem(i-1, j, item)
             self.dataAffectation=  rows[1::] # A stocker dans le modèle de données
-            print(self.dataAffectation)
+            #print(self.dataAffectation)
             
     def getDataInput(self):
         """ Récupère les informations du tableau des affectations """
@@ -914,7 +984,7 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
 FORM_CLASS_CALCUL_CHEMIN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_pluscourtchemin.ui'))
 class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
-    def __init__(self, parent=None):
+    def __init__(self, isCollecteParBassin = False, idBassin = None, parent=None):
         """Constructor."""
         super(PlusCourtChemin, self).__init__(parent)
         self.setupUi(self)  
@@ -922,7 +992,13 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         self.roadLayer_CBox.setLayer(None)
         self.zonechgtLayerInput.setLayer(None)
         self.zoneDechgtLayerInput.setLayer(None)
-    
+        self.idBassin = idBassin
+        if isCollecteParBassin :
+            self.frameBassin.setHidden(False)
+        else : 
+            self.frameBassin.setHidden(True)
+        self.tableCorrespondance = None
+            
     def getDataInput(self):
         """ Renvoie les données entrées en paramètres """
         self.roadLayer = self.roadLayer_CBox.currentLayer()
@@ -931,11 +1007,18 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         self.idZoneChgtLayer = self.idFieldCBox.currentText()
         self.idZoneDechgtLayer = self.idFieldCBox_2.currentText()
         self.volumeDechets = self.volumeFieldCBox.currentText()
+        self.bassinLayer = self.bassinLayer_CBox.currentLayer()
     
     def run(self):
-        """ Calcule les plus courts chemins. Requiert l'installation du plugin QNEAT3 """
+        """ 
+        Calcule les plus courts chemins entre la couche de chargement et de déchargement. 
+        Requiert l'installation du plugin QNEAT3.
+        
+        """
+        
         self.getDataInput()
-        # TODO: si les couches de chargement et de déchargement sont des polygones : travailler sur les centroides
+        # TODO: si les couches de chargement et de déchargement sont des polygones : 
+        # ajouter une  étape pour calculer les centroides sur lesquels lancer les calculs de plus court chemin
         
         # Calcul de la matrice des distances
         paramQNEAT3 = {
@@ -963,11 +1046,51 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             'OUTPUT' : 'memory:'}
         output = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
         return output
-           
-           
+                  
+    
+    def odMatrix(network_layer, from_point_layer, from_id_field, to_point_layer, to_id_field):
+        """
+        Calcule la matrice des distances avec QNEAT3.
+        
+        Parameters
+        -----------
+        network_layer : Couche de lignes
+            Réseau routier
+        from_point_layer: Couche des points de départ 
+            Zones de chargement
+        from_id_field: Attribut
+            Identifiant unique de la couche de points de départ
+        to_point_layer: Couche des points d'arrivées (
+            Zones de déchargement
+        to_id_field: Attribut
+            Identifiant unique de la couche de points d'arrivée
+            
+        Returns
+        --------
+        odMatrix: Couche de lignes
+            Matrice de distance entre les n points de départ et les m points d'arrivée
+        """
+        paramQNEAT3 = {
+                'INPUT': network_layer,
+                'FROM_POINT_LAYER' : from_point_layer,
+                'FROM_ID_FIELD' : from_id_field,
+                'TO_POINT_LAYER': to_point_layer,
+                'TO_ID_FIELD' : to_id_field,
+                'STRATEGY' : 0,
+                'OUTPUT' : 'memory:'
+                }
+        odMatrix = processing.run('qneat3:OdMatrixFromLayersAsLines', paramQNEAT3)['OUTPUT']
+        return odMatrix
+    
     def getMinCostFromOdMatrix(odMatrix):
         """
-            N.B. : Attributs de odMatrix :
+        Cherche les plus courts chemins dans une matrice de distance.
+        
+        Parameters
+        --------------
+        odMatrix : couche vecteur (lignes)
+                Matrice (m:n) des distances calculées entre les zones de dépôt. 
+                Ses attributs sont :
                     origin_id
                         ID du point d'origine
                     destination_id 
@@ -979,16 +1102,10 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
                     exit_cost
                         distance (ou durée) entre le point d'arrivée et le tronçon de route le plus proche
                     total_cost
-                        distance total (ou durée totale) entre le point d'origine et de départ
-        """
-        # Identifiants des AD
-        paramUniqueValues = {
-                    'INPUT': odMatrix,
-                    'FIELDS' : 'origin_id',
-                    'OUTPUT': 'memory:'
-        }
-        uniqueid = processing.run('qgis:listuniquevalues', paramUniqueValues)['OUTPUT']
-        
+                        distance total (ou durée totale) entre le point d'origine et d'arrivée
+        """        
+        paramUniqueValues = {'INPUT': odMatrix, 'FIELDS' : 'origin_id', 'OUTPUT': 'memory:'}
+        uniqueid = processing.run('qgis:listuniquevalues', paramUniqueValues)['OUTPUT'] # Identifiants uniques des AD
         selected_fid = [] # Liste des plus courts chemins
         for id in uniqueid.getFeatures():
             odMatrix.selectByExpression("origin_id={}".format(id['origin_id']))
@@ -996,7 +1113,7 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             minCost = features[0]['total_cost']
             plusCourtChemin = features[0]
             for feat in features : 
-                print("feat['total_cost'] = {}".format(feat['total_cost']))
+                #print("feat['total_cost'] = {}".format(feat['total_cost']))
                 if feat['total_cost'] is None :
                     continue
                 if feat['total_cost'] < minCost:
@@ -1009,4 +1126,129 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         uniqueschemins = processing.run("native:saveselectedfeatures", {'INPUT': odMatrix, 'OUTPUT': 'memory:'})['OUTPUT']
         uniqueschemins.setCrs(QgsCoordinateReferenceSystem(odMatrix.crs()))
         return uniqueschemins
+
+    
+    def extractZonesDepotInBassin(zdLayer, bassinLayer):
+        """ 
+        Extrait les zones de dépôts situées à l'intérieur d'un bassin 
+        
+        Parameters
+        ------------
+        zdLayer: QgsProcessingParameterVectorLayer
+            Zones de dépôt
+        bassinLayer: QgsProcessingParameterFeatureSource
+            Couche bassin de collecte
+            
+        Returns
+        ---------
+        output
+            Les zones de dépôt contenues dans le bassin
+        """
+        paramSelect = {
+                        'INPUT' : zdLayer,
+                        'PREDICATE': 6,
+                        'INTERSECT': QgsProcessingFeatureSourceDefinition(bassinLayer.id(), True), # entités sélectionnées de la couche
+                        'METHOD':0,
+                        'OUTPUT': 'memory:'
+                    }
+        output = processing.run('native:extractbylocation', paramSelect)['OUTPUT']
+        return output
+        
+    
+    def calcul(self):
+        """
+        Calcule les plus courts chemins selon différents cas de figure
+        (avec ou sans bassin de collecte, avec ou sans table de correspondance)
+        
+        """
+        
+        cheminsOutput = []
+        if self.bassinLayer is None : # Un seul bassin de collecte
+            # Calcule les chemins entre les couches des zones de chargement et de déchargement
+            if self.tableCorrespondance is None:
+                # Sélectionne les chemins les plus courts dans la matrice de distance
+                # Renvoie le résultat
+                pass
+            else: # Avec table de correspondance
+                # Sélectionne uniquement les chemins dont les ID origine / destination sont spécifiés dans la table de correspondance
+               
+                pass
+        else : # Plusieurs bassins de collecte
+            for bassin in self.bassinLayer :
+                # Extrait les entités des couches de chargement situés à l'intérieur du bassin courant
+                if self.tableCorrespondance is None:
+                    # Extrait les entités des couches de déchargement situés à l'intérieur du bassin courant
+                    # Calcule les distances entre les zones sélectionnées dans les deux couches
+                    # Sélectionne les chemins les plus courts
+                    pass
+
+                else:
+                    # 
+                    pass
+                # Concatène les chemins calculés sur le bassin
+                
+        # Jointure de l'attribut volume de la couche des points de départ
+        # Renvoie le résultat
+        return cheminsOutput
+        
+    def calculParBassin(self, tableCorrespondance = None):
+        """ 
+        Calcule les plus courts chemins des AD vers les ZST dans chaque bassin de collecte. 
+        Par défaut, les chemins sont calculés entre les AD et les ZST
+        les plus proches et qui se trouvent dans le même bassin de collecte.
+        
+        Parameters 
+        ----------------------
+        tableCorrespondance: list (?), optional
+            Renseigne les zones de dépôt de départ et d'arrivée. 
+            Si elle est None, les chemins sont calculés entre les zones de chargement/déchargement les plus proches 
+            situées à l'intérieur du même bassin
+        """
+        odMatrice = [] # Liste de tous les plus courts chemins calculés
+        for bassin in self.bassinLayer.getFeatures():
+            self.bassinLayer.select([bassin.id()]) # Sélectionne le bassin courant
+            # Extrait les zones de chargement qui sont dans le bassin
+            zoneChgtExtract = PlusCourtsCheminsParBassin.extractZonesDepotInBassin(self.zoneChgtLayer, self.bassinLayer)
+            if tableCorrespondance is None :
+                # Extrait les zones de déchargement qui sont dans le bassin
+                zoneDechgtExtract = PlusCourtsCheminsParBassin.extractZonesDepotInBassin(self.zoneDechgtLayer, self.bassinLayer)
+                # Test pour s'assurer que les sélections de zones de chgt/dechgt ne sont pas vides
+                if zoneChgtExtract.featureCount() == 0 or zoneDechgtExtract.featureCount() == 0 :
+                    continue
+                print('{} zones de chargement et {} zones de déchargement'.format(zoneChgtExtract.featureCount(), zoneDechgtExtract.featureCount()))                
+                # Lancer le calcul des plus courts chemins sur les zones sélectionées
+                paramQNEAT3 = {
+                'INPUT': self.roadLayer,
+                'FROM_POINT_LAYER' : zoneChgtExtract,
+                'FROM_ID_FIELD' : self.idZoneChgtLayer,
+                'TO_POINT_LAYER': zoneDechgtExtract,
+                'TO_ID_FIELD' : self.idZoneDechgtLayer,
+                'STRATEGY' : 0,
+                'OUTPUT' : 'memory:'}
+                odMatrix = processing.run('qneat3:OdMatrixFromLayersAsLines', paramQNEAT3)['OUTPUT']
+                # Si le nombre de zones de déchargement > 1, sélectionner les chemins les plus courts
+                if zoneDechgtExtract.featureCount() > 1:
+                    odMatrix = PlusCourtChemin.getMinCostFromOdMatrix(odMatrix)
+                # Jointure de l'attribut volume
+                print(odMatrix)
+                paramJoin = {
+                    'INPUT' : odMatrix,
+                    'FIELD': 'origin_id',
+                    'INPUT_2': self.zoneChgtLayer,
+                    'FIELD_2' : self.idZoneChgtLayer,
+                    'FIELDS_TO_COPY' : self.volumeDechets,
+                    'METHOD' : 1,
+                    'OUTPUT' : 'memory:'}
+                output = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
+                # Ajoute une nouvelle colonne avec l'ID du bassin courant
+                
+                odMatrice.append(output)
+            else :
+                # Sélectionne les zones de déchargement qui sont indiquées dans la table de correspondance
+                pass
+                # Test pour s'assurer que les sélections de zones de chgt/dechgt ne sont pas vides
+                # Lancer QNEAT3 sur les sélections
+                # Si le nombre de zones de déchargement 
+        # Fusionner tous les plus courts chemins ?
+        
         

@@ -120,32 +120,32 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         "isPenaliteTrafic" : False,
         "nbVehicules" : 0,
         "capaMaxMoy" : 0}):
-            """ Récapitule le scénario simulé dans l'onglet "Résultats" de l'interface 
+        """ Récapitule le scénario simulé dans l'onglet "Résultats" de l'interface 
             
-            Parameters
-            ----------
-            paramScenario : dict
-                Paramétrage du scénario simulé.
-            """
-            # Circuit simulé
-            self.recap_circuit1checkBox.setChecked(paramScenario["simuCircuit1"])
-            self.recap_circuit2checkBox.setChecked(paramScenario["simuCircuit2"])
-            # Zones de dépôt
-            self.recap_gisementLayer.setLayer(paramScenario["zdLayer1"])
-            self.recap_zstLayer.setLayer(paramScenario["zdLayer2"])
-            self.recap_exutoireLayer.setLayer(paramScenario["zdLayer3"])
-            # Acteurs
-            self.recap_nbVehicules.setValue(paramScenario["nbVehicules"])
-            self.recap_capaMaxMoy.setValue(paramScenario["capaMaxMoy"])            
-            self.recap_collecteParBassin_checkBox.setChecked(paramScenario["isCollecteParBassin"]) # Collecte par bassin
-            self.recap_cheminLayer.setLayer(paramScenario["chemin2ZSTLayer"]) # Chemins vers les ZST
-            # Durées de chargement / déchargement
-            self.recap_dureeChgt.setValue(paramScenario["dureeChgt"])
-            self.recap_dureeDechgt.setValue(paramScenario["dureeDechgt"])
-            self.recap_dureeChgtFoncVolume.setChecked(paramScenario["isDureeChgtSelonVolume"])
-            self.recap_dureeDechgtFoncVolume.setChecked(paramScenario["isDureeDechgtSelonVolume"])
-            self.recap_dureeChgFoncEquipt.setChecked(paramScenario["isDureeDechgtSelonEquipment"])
-            self.recap_penaliteTrafic.setChecked(paramScenario["isPenaliteTrafic"])
+        Parameters
+        ----------
+        paramScenario : dict
+            Paramétrage du scénario simulé.
+        """
+        # Circuit simulé
+        self.recap_circuit1checkBox.setChecked(paramScenario["simuCircuit1"])
+        self.recap_circuit2checkBox.setChecked(paramScenario["simuCircuit2"])
+        # Zones de dépôt
+        self.recap_gisementLayer.setLayer(paramScenario["zdLayer1"])
+        self.recap_zstLayer.setLayer(paramScenario["zdLayer2"])
+        self.recap_exutoireLayer.setLayer(paramScenario["zdLayer3"])
+        # Acteurs
+        self.recap_nbVehicules.setValue(paramScenario["nbVehicules"])
+        self.recap_capaMaxMoy.setValue(paramScenario["capaMaxMoy"])            
+        self.recap_collecteParBassin_checkBox.setChecked(paramScenario["isCollecteParBassin"]) # Collecte par bassin
+        self.recap_cheminLayer.setLayer(paramScenario["chemin2ZSTLayer"]) # Chemins vers les ZST
+        # Durées de chargement / déchargement
+        self.recap_dureeChgt.setValue(paramScenario["dureeChgt"])
+        self.recap_dureeDechgt.setValue(paramScenario["dureeDechgt"])
+        self.recap_dureeChgtFoncVolume.setChecked(paramScenario["isDureeChgtSelonVolume"])
+        self.recap_dureeDechgtFoncVolume.setChecked(paramScenario["isDureeDechgtSelonVolume"])
+        self.recap_dureeChgFoncEquipt.setChecked(paramScenario["isDureeDechgtSelonEquipment"])
+        self.recap_penaliteTrafic.setChecked(paramScenario["isPenaliteTrafic"])
     
     def displayResult(self, resultSimu, header = None):
         """ Affiche le résultat de la simulation dans l'onglet Résultats de l'interface 
@@ -157,7 +157,6 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         header : list
             Entête du tableau, contient les noms de colonnes
             
-        
         """
         if not header is None:
             self.tableWidget.setColumnCount(len(header))
@@ -172,3 +171,29 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 
                 newitem = QTableWidgetItem(str(cellValue))
                 self.tableWidget.setItem(nrow, ncol, newitem)
+    
+    def displayVisu(self, resultSimu, header = None):
+        """
+        Affiche les durées de collecte par zone de dépôt (de chargement) dans l'onglet Visualisation
+        de l'interface.
+        
+        Parameters
+        -----------
+        resultSimu: list of list
+        
+        header : list
+            Entête du tableau contenant les noms de colonnes
+            
+        """
+        if not header is None:
+            self.tableWidget_3.setColumnCount(len(header))
+            self.tableWidget_3.setHorizontalHeaderLabels(header)
+        self.tableWidget_3.setRowCount(len(resultSimu))
+        for i in range(len(resultSimu)):
+            result = resultSimu[i]
+            for j in range(len(result)):
+                cellValue = result[j]
+                if isinstance(cellValue, float):
+                    cellValue = round(cellValue, 2)
+                newitem = QTableWidgetItem(str(cellValue))
+                self.tableWidget_3.setItem(i, j, newitem)
