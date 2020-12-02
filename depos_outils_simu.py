@@ -37,7 +37,7 @@ from qgis.PyQt import uic, QtWidgets
 from qgis.core import QgsFeature, QgsVectorLayerExporter, QgsFieldProxyModel, QgsMapLayerProxyModel
 from qgis.core import QgsVectorLayer, QgsDataSourceUri, QgsProject, QgsApplication, QgsCoordinateReferenceSystem
 from qgis.core import QgsExpressionContext, QgsExpressionContextUtils, QgsExpression, QgsField
-from qgis.core import QgsProcessing
+from qgis.core import QgsProcessing, QgsProcessingFeatureSourceDefinition
 
 from qgis.utils import iface
 import processing
@@ -477,12 +477,14 @@ class SimuDePOs:
         """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins """
         
         self.paramInput = self.dlg.getInput()
-        dialog = PlusCourtChemin(isCollecteParBassin = self.paramInput['isCollecteParBassin'], idBassin = self.paramInput['idBassin'])
+        dialog = PlusCourtChemin(isCollecteParBassin = self.paramInput['isCollecteParBassin'], 
+        bassinLayer = self.paramInput['bassinLayer'], idBassin = self.paramInput['idBassin'])
         dialog.zonechgtLayerInput.setLayer(self.dlg.suivi_couche_ad.currentLayer())
         dialog.zoneDechgtLayerInput.setLayer(self.dlg.suivi_couche_zst.currentLayer())
         result = dialog.exec_()
         if result:
-            routing_output = dialog.run()
+            routing_output = dialog.calcul()
+            self.unselectAll() # Dé-sélectionne toutes les entités
             QgsProject.instance().addMapLayer(routing_output)
             # Récupère certains paramètres d'entrées nécessaires pour calculer les couches de sortie de simulation
             self.idZoneDechgtLayer = dialog.idZoneDechgtLayer # ID de la zone de déchargement
@@ -984,7 +986,7 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
 FORM_CLASS_CALCUL_CHEMIN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_pluscourtchemin.ui'))
 class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
-    def __init__(self, isCollecteParBassin = False, idBassin = None, parent=None):
+    def __init__(self, isCollecteParBassin = False, bassinLayer = None, idBassin = None, parent=None):
         """Constructor."""
         super(PlusCourtChemin, self).__init__(parent)
         self.setupUi(self)  
@@ -992,11 +994,14 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         self.roadLayer_CBox.setLayer(None)
         self.zonechgtLayerInput.setLayer(None)
         self.zoneDechgtLayerInput.setLayer(None)
+        
         self.idBassin = idBassin
         if isCollecteParBassin :
             self.frameBassin.setHidden(False)
+            self.bassinLayer_CBox.setLayer(bassinLayer)
         else : 
             self.frameBassin.setHidden(True)
+            self.bassinLayer_CBox.setLayer(None)
         self.tableCorrespondance = None
             
     def getDataInput(self):
@@ -1007,46 +1012,7 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         self.idZoneChgtLayer = self.idFieldCBox.currentText()
         self.idZoneDechgtLayer = self.idFieldCBox_2.currentText()
         self.volumeDechets = self.volumeFieldCBox.currentText()
-        self.bassinLayer = self.bassinLayer_CBox.currentLayer()
-    
-    def run(self):
-        """ 
-        Calcule les plus courts chemins entre la couche de chargement et de déchargement. 
-        Requiert l'installation du plugin QNEAT3.
-        
-        """
-        
-        self.getDataInput()
-        # TODO: si les couches de chargement et de déchargement sont des polygones : 
-        # ajouter une  étape pour calculer les centroides sur lesquels lancer les calculs de plus court chemin
-        
-        # Calcul de la matrice des distances
-        paramQNEAT3 = {
-                'INPUT': self.roadLayer,
-                'FROM_POINT_LAYER' : self.zoneChgtLayer,
-                'FROM_ID_FIELD' : self.idZoneChgtLayer,
-                'TO_POINT_LAYER': self.zoneDechgtLayer,
-                'TO_ID_FIELD' : self.idZoneDechgtLayer,
-                'STRATEGY' : 0,
-                'OUTPUT' : 'memory:'
-                }
-        odMatrix = processing.run('qneat3:OdMatrixFromLayersAsLines', paramQNEAT3)['OUTPUT']
-        # S'il y a plus d'une ZST dans le bassin, on sélectionne les chemins de coût minimum dans la matrice de distance
-        if  self.zoneDechgtLayer.featureCount() > 1 : 
-            odMatrix = PlusCourtChemin.getMinCostFromOdMatrix(odMatrix)
-        # Jointure de l'attribut volume
-        print(odMatrix)
-        paramJoin = {
-            'INPUT' : odMatrix,
-            'FIELD': 'origin_id',
-            'INPUT_2': self.zoneChgtLayer,
-            'FIELD_2' : self.idZoneChgtLayer,
-            'FIELDS_TO_COPY' : self.volumeDechets,
-            'METHOD' : 1,
-            'OUTPUT' : 'memory:'}
-        output = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
-        return output
-                  
+        self.bassinLayer = self.bassinLayer_CBox.currentLayer()                  
     
     def odMatrix(network_layer, from_point_layer, from_id_field, to_point_layer, to_id_field):
         """
@@ -1130,14 +1096,14 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
     
     def extractZonesDepotInBassin(zdLayer, bassinLayer):
         """ 
-        Extrait les zones de dépôts situées à l'intérieur d'un bassin 
+        Extrait les zones de dépôts situées à l'intérieur d'un bassin sélectionné
         
         Parameters
         ------------
         zdLayer: QgsProcessingParameterVectorLayer
             Zones de dépôt
         bassinLayer: QgsProcessingParameterFeatureSource
-            Couche bassin de collecte
+            Couche bassin de collecte avec des entités sélectionnées
             
         Returns
         ---------
@@ -1161,94 +1127,71 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         (avec ou sans bassin de collecte, avec ou sans table de correspondance)
         
         """
-        
+        self.getDataInput()
         cheminsOutput = []
+        odMat = None
         if self.bassinLayer is None : # Un seul bassin de collecte
-            # Calcule les chemins entre les couches des zones de chargement et de déchargement
+            # Calcule les chemins entre les couches des zones de chargement et de déchargement en entrée
+            odMat = PlusCourtChemin.odMatrix(network_layer = self.roadLayer, 
+            from_point_layer = self.zoneChgtLayer, from_id_field = self.idZoneChgtLayer,
+            to_point_layer = self.zoneDechgtLayer, to_id_field = self.idZoneDechgtLayer)
             if self.tableCorrespondance is None:
-                # Sélectionne les chemins les plus courts dans la matrice de distance
-                # Renvoie le résultat
-                pass
-            else: # Avec table de correspondance
-                # Sélectionne uniquement les chemins dont les ID origine / destination sont spécifiés dans la table de correspondance
-               
+                # S'il y a plus d'une zone de déchargement 
+                # sélectionne les chemins de coût minimum dans la matrice de distance
+                if  self.zoneDechgtLayer.featureCount() > 1 : 
+                    odMat = PlusCourtChemin.getMinCostFromOdMatrix(odMat)
+            else: # Avec table de correspondance : TODO
+                # Sélectionne uniquement les chemins dont les ID origine / destination 
+                # sont spécifiés dans la table de correspondance
                 pass
         else : # Plusieurs bassins de collecte
-            for bassin in self.bassinLayer :
+            odMatList = []
+            for bassin in self.bassinLayer.getFeatures():
+                self.bassinLayer.removeSelection()
+                self.bassinLayer.select([bassin.id()]) # Sélectionne le bassin courant
                 # Extrait les entités des couches de chargement situés à l'intérieur du bassin courant
+                extractChgt = PlusCourtChemin.extractZonesDepotInBassin(self.zoneChgtLayer, self.bassinLayer)
+                if extractChgt.featureCount() == 0 :
+                    continue
                 if self.tableCorrespondance is None:
                     # Extrait les entités des couches de déchargement situés à l'intérieur du bassin courant
+                    extractDechgt = PlusCourtChemin.extractZonesDepotInBassin(self.zoneDechgtLayer, self.bassinLayer)
+                    print('Bassin ID : {}'.format(bassin.id()))
+                    print('{} zones de chargement et {} zones de déchargement'.format(extractChgt.featureCount(), extractDechgt.featureCount()))
+                    if extractDechgt.featureCount() == 0 :
+                        continue                    
                     # Calcule les distances entre les zones sélectionnées dans les deux couches
-                    # Sélectionne les chemins les plus courts
-                    pass
-
-                else:
-                    # 
-                    pass
+                    odMatBassin = PlusCourtChemin.odMatrix(network_layer = self.roadLayer, 
+                    from_point_layer = extractChgt, from_id_field = self.idZoneChgtLayer,
+                    to_point_layer = extractDechgt, to_id_field = self.idZoneDechgtLayer)
+                    print('{} chemins calculés '.format(odMatBassin.featureCount()))
+                    # Sélectionne les chemins les plus courts s'il y a plus d'une zone de déchargement
+                    if  extractDechgt.featureCount() > 1 : 
+                        odMatBassin = PlusCourtChemin.getMinCostFromOdMatrix(odMatBassin)
+                else: # Cas d'une table de correspondance
+                    pass # TODO
                 # Concatène les chemins calculés sur le bassin
+                odMatList.append(odMatBassin)
+            # Fusionne dans une couche tous les chemins calculés dans chaque bassin
+            if len(odMatList) > 0:
+                print('Fusion de {} bassins'.format(len(odMatList)))
+                merge_param = {'LAYERS': odMatList,  'CRS': self.zoneChgtLayer.crs(), 'OUTPUT': 'memory:'}
+                odMat = processing.run("qgis:mergevectorlayers", merge_param)['OUTPUT']  
                 
         # Jointure de l'attribut volume de la couche des points de départ
+        print('Jointure de de l\'attribut volume')
+        paramJoin = {
+            'INPUT' : odMat, 'FIELD': 'origin_id',
+            'INPUT_2': self.zoneChgtLayer, 'FIELD_2' : self.idZoneChgtLayer, 'FIELDS_TO_COPY' : self.volumeDechets,
+            'METHOD' : 1, 'OUTPUT' : 'memory:'}
+        cheminsOutput = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
         # Renvoie le résultat
         return cheminsOutput
+
+    def unselectAll():
+        """ Désélectionne toutes les entités """
         
-    def calculParBassin(self, tableCorrespondance = None):
-        """ 
-        Calcule les plus courts chemins des AD vers les ZST dans chaque bassin de collecte. 
-        Par défaut, les chemins sont calculés entre les AD et les ZST
-        les plus proches et qui se trouvent dans le même bassin de collecte.
-        
-        Parameters 
-        ----------------------
-        tableCorrespondance: list (?), optional
-            Renseigne les zones de dépôt de départ et d'arrivée. 
-            Si elle est None, les chemins sont calculés entre les zones de chargement/déchargement les plus proches 
-            situées à l'intérieur du même bassin
-        """
-        odMatrice = [] # Liste de tous les plus courts chemins calculés
-        for bassin in self.bassinLayer.getFeatures():
-            self.bassinLayer.select([bassin.id()]) # Sélectionne le bassin courant
-            # Extrait les zones de chargement qui sont dans le bassin
-            zoneChgtExtract = PlusCourtsCheminsParBassin.extractZonesDepotInBassin(self.zoneChgtLayer, self.bassinLayer)
-            if tableCorrespondance is None :
-                # Extrait les zones de déchargement qui sont dans le bassin
-                zoneDechgtExtract = PlusCourtsCheminsParBassin.extractZonesDepotInBassin(self.zoneDechgtLayer, self.bassinLayer)
-                # Test pour s'assurer que les sélections de zones de chgt/dechgt ne sont pas vides
-                if zoneChgtExtract.featureCount() == 0 or zoneDechgtExtract.featureCount() == 0 :
-                    continue
-                print('{} zones de chargement et {} zones de déchargement'.format(zoneChgtExtract.featureCount(), zoneDechgtExtract.featureCount()))                
-                # Lancer le calcul des plus courts chemins sur les zones sélectionées
-                paramQNEAT3 = {
-                'INPUT': self.roadLayer,
-                'FROM_POINT_LAYER' : zoneChgtExtract,
-                'FROM_ID_FIELD' : self.idZoneChgtLayer,
-                'TO_POINT_LAYER': zoneDechgtExtract,
-                'TO_ID_FIELD' : self.idZoneDechgtLayer,
-                'STRATEGY' : 0,
-                'OUTPUT' : 'memory:'}
-                odMatrix = processing.run('qneat3:OdMatrixFromLayersAsLines', paramQNEAT3)['OUTPUT']
-                # Si le nombre de zones de déchargement > 1, sélectionner les chemins les plus courts
-                if zoneDechgtExtract.featureCount() > 1:
-                    odMatrix = PlusCourtChemin.getMinCostFromOdMatrix(odMatrix)
-                # Jointure de l'attribut volume
-                print(odMatrix)
-                paramJoin = {
-                    'INPUT' : odMatrix,
-                    'FIELD': 'origin_id',
-                    'INPUT_2': self.zoneChgtLayer,
-                    'FIELD_2' : self.idZoneChgtLayer,
-                    'FIELDS_TO_COPY' : self.volumeDechets,
-                    'METHOD' : 1,
-                    'OUTPUT' : 'memory:'}
-                output = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
-                # Ajoute une nouvelle colonne avec l'ID du bassin courant
-                
-                odMatrice.append(output)
-            else :
-                # Sélectionne les zones de déchargement qui sont indiquées dans la table de correspondance
-                pass
-                # Test pour s'assurer que les sélections de zones de chgt/dechgt ne sont pas vides
-                # Lancer QNEAT3 sur les sélections
-                # Si le nombre de zones de déchargement 
-        # Fusionner tous les plus courts chemins ?
-        
-        
+        for a in iface.attributesToolBar().actions():
+                if a.objectName() == 'mActionDeselectAll':
+                    a.trigger()
+                    break
