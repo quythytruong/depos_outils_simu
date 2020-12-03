@@ -280,6 +280,7 @@ class SimuDePOs:
                                                         duree_chgt = self.paramInput["dureeChgt"], 
                                                         duree_dechgt = self.paramInput["dureeDechgt"])
                 self.dureesCollecte = self.dureesCollecte + d1
+                d2['idBassin'] = idBassin
                 self.dureeTotaleCollecte.append(d2)                                                        
                 # Constitue une liste des ID des zones de chargement contenues dans le bassin
                 # Sélectionne les chemins dont l'ID origine est contenu dans la liste constituée précédemment
@@ -313,11 +314,12 @@ class SimuDePOs:
         for d in self.dureesCollecte:
             dureesZones.append(list(d.values()))
         self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones)
-        '''    
-        out1, out2 = self.outputLayer() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
-        QgsProject.instance().addMapLayer(out1)
-        QgsProject.instance().addMapLayer(out2)
-        '''
+            
+        output = self.outputLayer() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
+        for out in output :            
+            QgsProject.instance().addMapLayer(out)
+        #QgsProject.instance().addMapLayer(out2)
+        
     def collectDuration(self):
         """ 
         Calcule les durées pour vider chaque zone de dépôt (AD ou ZST)
@@ -385,7 +387,6 @@ class SimuDePOs:
         """
         dureesCollecte = [] # Liste des durées de vidage des zones de chargement
         dureesVidageZoneDepot = [] # Indicateur de durée totale de la collecte
-        #dureesParBassin = []
         if circuit == 0:
             for chemin in routingInfo:
                 # Calcule la durée de vidage d'une zone de dépôt
@@ -400,7 +401,6 @@ class SimuDePOs:
             dureeTotale = dureeCollecteBassin(dureesVidageZoneDepot,nbVehicules, nbHeuresTravailParJour = 8)
             dureeTotale['n_vehicules'] = nbVehicules
             dureeTotale['capacite_max_m3']= capaMax
-            #dureesParBassin.append(dureeTotale)
         elif circuit == 1 :
             pass        
         return dureesCollecte, dureeTotale #dureesParBassin
@@ -418,24 +418,24 @@ class SimuDePOs:
             # Duplique la couche des AD en entrée : 
             # Sélectionne toutes les entités et les exporte dans une nouvelle couche
             self.paramInput['zdLayer1'].selectAll()
-            adOutputLayer = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer1'], 'OUTPUT': 'memory:'})['OUTPUT']
-            adOutputLayer.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer1'].crs()))
+            adOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer1'], 'OUTPUT': 'memory:'})['OUTPUT']
+            adOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer1'].crs()))
             self.paramInput['zdLayer1'].removeSelection() # Dé-sélectionne toutes les entités sélectionnées de la couche
             
             # Ajoute un nouveau champ
-            adOutputLayerPrv = adOutputLayer.dataProvider()
-            adOutputLayerPrv.addAttributes([QgsField('duree_h',QVariant.Double)])
-            adOutputLayer.updateFields()
-            adOutputLayer.startEditing()
-            for feat in adOutputLayer.getFeatures():
+            adOutputPrv = adOutput.dataProvider()
+            adOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double)])
+            adOutput.updateFields()
+            adOutput.startEditing()
+            for feat in adOutput.getFeatures():
                 idAD = feat[self.idZoneChgtLayer]
                 for resultat in self.dureesCollecte:
                     if resultat['id_chgt'] == idAD:
                         feat['duree_h'] = resultat['duree_h']
-                        adOutputLayer.updateFeature(feat)
+                        adOutput.updateFeature(feat)
                         break
-            adOutputLayer.commitChanges()
-            adOutputLayer.setName('1 - Zones de chargement')
+            adOutput.commitChanges()
+            adOutput.setName('1 - Zones de chargement')
             
             """
             Reprend la couche des ZST en y ajoutant plusieurs colonnes pour indiquer:
@@ -446,17 +446,16 @@ class SimuDePOs:
             # Duplique la couche des ZST en entrée : 
             # Sélectionne toutes les entités et les exporte dans une nouvelle couche
             self.paramInput['zdLayer2'].selectAll()
-            zstOutputLayer = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
-            zstOutputLayer.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
+            zstOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
+            zstOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
             self.paramInput['zdLayer2'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
             
             # Ajoute un champ "durée de collecte" et un champs "volume total de déchets"
-            zstOutputLayerPrv = zstOutputLayer.dataProvider()
-            zstOutputLayerPrv.addAttributes([QgsField('duree_h',QVariant.Double),QgsField('vol_dechet_m3',QVariant.Double)])
-            zstOutputLayer.updateFields()
-            #print(zstOutputLayer.fields().names())
-            zstOutputLayer.startEditing()
-            for feat in zstOutputLayer.getFeatures():                
+            zstOutputPrv = zstOutput.dataProvider()
+            zstOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double),QgsField('vol_dechet_m3',QVariant.Double)])
+            zstOutput.updateFields()
+            zstOutput.startEditing()
+            for feat in zstOutput.getFeatures():                
                 volTotal = 0
                 dureeMax = 0
                 idZST = feat[self.idZoneDechgtLayer]
@@ -467,17 +466,86 @@ class SimuDePOs:
                             dureeMax = resultat['duree_h']
                 feat['duree_h'] = dureeMax
                 feat['vol_dechet_m3'] = volTotal
-                zstOutputLayer.updateFeature(feat)   
-            zstOutputLayer.commitChanges()
+                zstOutput.updateFeature(feat)   
+            zstOutput.commitChanges()
             
             # Extrait uniquement les zones de dépôt qui ont reçu des déchets
-            param_extract = {'INPUT' : zstOutputLayer,
+            param_extract = {'INPUT' : zstOutput,
             'EXPRESSION' : 'vol_dechet_m3 <>0',
             'OUTPUT': 'memory:'}
-            extractOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
-            extractOutput.setName('1 - Zones de déchargement')
+            zstExtractOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
+            zstExtractOutput.setName('1 - Zones de déchargement')
             
-            return adOutputLayer, extractOutput
+            """ 
+            Couche portant la durée de collecte sur la zone :
+            Cas de la collecte par bassin : 
+                - Reprend la couche d'entrée des bassins de collecte
+                - Ajoute les colonnes des durées (en h, semaines, mois), le nombre de véhicules et la capacité max moyenne
+                - Met à jour ces attributs selon chaque bassin
+            Cas de la collecte sans partitionnement du territoire: 
+                - Calculer l'emprise minimale des points de la couche des zones de chargement
+                - Ajouter la colonne des durées (en h, semaines, mois), le nombre de véhicules et la capacité max moyenne
+                - Met à jour ces attributs            
+            
+            """
+            if self.paramInput["isCollecteParBassin"]:
+                # Duplique la couche des bassins de collecte
+                self.paramInput['bassinLayer'].selectAll()
+                bassinOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['bassinLayer'], 'OUTPUT': 'memory:'})['OUTPUT']
+                bassinOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['bassinLayer'].crs()))
+                self.paramInput['bassinLayer'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
+                # Ajoute les colonnes de durées et les caractéristiques de l'acteur
+                bassinOutputPrv = bassinOutput.dataProvider()
+                bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
+                                                QgsField('duree_jour',QVariant.Double),
+                                                QgsField('duree_semaine',QVariant.Double), 
+                                                QgsField('duree_mois',QVariant.Double),
+                                                QgsField('n_vehicules',QVariant.Int),
+                                                QgsField('capacite_max_m3',QVariant.Double)])
+                bassinOutput.updateFields()
+                bassinOutput.startEditing()
+                for feat in bassinOutput.getFeatures():  # Parcourt les bassins
+                    for info in self.dureeTotaleCollecte :# Parcourt les durées par bassin
+                        if feat[self.paramInput['idBassin']] == info['idBassin']:
+                            feat['duree_h'] = info['duree_h']
+                            feat['duree_jour'] = info['duree_jour']
+                            feat['duree_semaine'] = info['duree_semaine']
+                            feat['duree_mois'] = info['duree_mois']
+                            feat['n_vehicules'] = info['n_vehicules']
+                            feat['capacite_max_m3'] = info['capacite_max_m3']
+                            bassinOutput.updateFeature(feat)   
+                            break
+                bassinOutput.commitChanges()
+                # Extrait uniquement les bassins qui ont été collectés
+                param_extract = {'INPUT' : bassinOutput, 'EXPRESSION' : 'duree_h IS NOT NULL', 'OUTPUT': 'memory:'}
+                bassinOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']                
+            else : 
+                # Calcule l'enveloppe convexe des zones de chargement
+                param_emprise = {'INPUT' : adOutput, 'TYPE': 3, 'OUTPUT': 'memory:'}
+                bassinOutput = processing.run('qgis:minimumboundinggeometry', param_emprise)['OUTPUT']
+                # Ajoute les colonnes de durées et les caractéristiques de l'acteur
+                bassinOutputPrv = bassinOutput.dataProvider()
+                bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
+                                                QgsField('duree_jour',QVariant.Double),
+                                                QgsField('duree_semaine',QVariant.Double), 
+                                                QgsField('duree_mois',QVariant.Double),
+                                                QgsField('n_vehicules',QVariant.Int),
+                                                QgsField('capacite_max_m3',QVariant.Double)])
+                bassinOutput.updateFields()
+                bassinOutput.startEditing()
+                for feat in bassinOutput.getFeatures(): # Normalement il n'y a qu'un seul élément dans la liste
+                    info = self.dureeTotaleCollecte[0]
+                    feat['duree_h'] = info['duree_h']
+                    feat['duree_jour'] = info['duree_jour']
+                    feat['duree_semaine'] = info['duree_semaine']
+                    feat['duree_mois'] = info['duree_mois']
+                    feat['n_vehicules'] = info['n_vehicules']
+                    feat['capacite_max_m3'] = info['capacite_max_m3']  
+                    bassinOutput.updateFeature(feat)         
+                bassinOutput.commitChanges()
+            bassinOutput.setName('1 - Durées par zone')
+            return [bassinOutput, adOutput, zstExtractOutput]
+            
     
     def runSimuDamage(self):
         """ Run damage simulation window """
@@ -1309,5 +1377,6 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             'INPUT_2': self.zoneChgtLayer, 'FIELD_2' : self.idZoneChgtLayer, 'FIELDS_TO_COPY' : self.volumeDechets,
             'METHOD' : 1, 'OUTPUT' : 'memory:'}
         cheminsOutput = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
+        cheminsOutput.setName('Chemins')
         # Renvoie le résultat
         return cheminsOutput
