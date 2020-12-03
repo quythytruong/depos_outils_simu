@@ -158,6 +158,7 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             Entête du tableau, contient les noms de colonnes
             
         """
+        '''
         if not header is None:
             self.tableWidget.setColumnCount(len(header))
             self.tableWidget.setHorizontalHeaderLabels(header)
@@ -171,6 +172,19 @@ class DePosMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 
                 newitem = QTableWidgetItem(str(cellValue))
                 self.tableWidget.setItem(nrow, ncol, newitem)
+        '''
+        if not header is None:
+            self.tableWidget.setColumnCount(len(header))
+            self.tableWidget.setHorizontalHeaderLabels(header)
+        self.tableWidget.setRowCount(len(resultSimu))
+        for i in range(len(resultSimu)):
+            result = resultSimu[i]
+            for j in range(len(result)):
+                cellValue = result[j]
+                if isinstance(cellValue, float):
+                    cellValue = round(cellValue, 2)
+                newitem = QTableWidgetItem(str(cellValue))
+                self.tableWidget.setItem(i, j, newitem)
     
     def displayVisu(self, resultSimu, header = None):
         """

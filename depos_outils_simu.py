@@ -242,31 +242,82 @@ class SimuDePOs:
         """ Run waste collection simulation """
         
         self.paramInput = self.dlg.getInput() 
+        self.dureeTotaleCollecte = []
+        self.dureesCollecte= [] 
+            
         if self.paramInput["isCollecteParBassin"]:
-            QMessageBox.information(None, 'TODO', 'Collecte par bassins !')
+            #QMessageBox.information(None, 'TODO', 'Collecte par bassins !')
+            print('self.affectationActeurBassin : {}'.format(self.affectationActeurBassin))
+            for bassin in self.paramInput['bassinLayer'].getFeatures(): 
+                # Récupère l'acteur affecté au bassin : le nombre de véhicules, la capacité maximale
+                idBassin = bassin[self.paramInput['idBassin']]
+                print('Bassin id. : {}'.format(idBassin))
+                try:
+                    nbv = self.affectationActeurBassin[str(idBassin)]['nb_vehicules'] # nombre de véhicules sur le bassin
+                    capaMax =self.affectationActeurBassin[str(idBassin)]['capaciteMaxMoy_m3'] # capacité moyenne des véhicules du bassin                
+                    self.paramInput['bassinLayer'].removeSelection()
+                    self.paramInput['bassinLayer'].select([bassin.id()]) # Sélectionne le bassin courant
+                except KeyError:
+                    print( "Le bassin {} n'est pas affecté".format(idBassin))
+                    continue
+                
+                # Extrait les entités des zones de chargement situés à l'intérieur du bassin courant
+                extractChgt = PlusCourtChemin.extractZonesDepotInBassin(self.paramInput["zdLayer1"], self.paramInput['bassinLayer'])
+                if extractChgt.featureCount() == 0 :
+                    continue
+                # Sélectionne les chemins correspondants
+                select_chemins = []
+                for zone in extractChgt.getFeatures():
+                    id_origin = zone[self.idZoneChgtLayer]
+                    for chemin in self.traj2ZST: # parcourt une liste de dictionnaires
+                        if chemin['idAD'] == id_origin :
+                            select_chemins.append(chemin)
+                            break
+                print('select_chemins = {}'.format(select_chemins))
+                d1, d2 = SimuDePOs.collectDurationBassin(routingInfo = select_chemins, 
+                                                        nbVehicules = self.paramInput["nbVehicules"],
+                                                        capaMax = self.paramInput["capaMaxMoy"], 
+                                                        duree_chgt = self.paramInput["dureeChgt"], 
+                                                        duree_dechgt = self.paramInput["dureeDechgt"])
+                self.dureesCollecte = self.dureesCollecte + d1
+                self.dureeTotaleCollecte.append(d2)                                                        
+                # Constitue une liste des ID des zones de chargement contenues dans le bassin
+                # Sélectionne les chemins dont l'ID origine est contenu dans la liste constituée précédemment
+            self.paramInput['bassinLayer'].removeSelection()
+            print('Finally, self.dureesCollecte = {}\n AND self.dureeTotaleCollecte = {}'.format(self.dureesCollecte, self.dureeTotaleCollecte))
         else : 
-            self.dureesCollecte, self.dureeTotaleCollecte = self.collectDuration() 
-            print('Durée totale de la collecte : {} h'.format(self.dureeTotaleCollecte))
-            QMessageBox.information(None, 'Fin de calcul', 'Simulation de collecte terminée !')
-            # Affichage dans l'onglet Résultats
-            self.dlg.recapScenario(paramScenario = self.paramInput) # Récapitule le scénario simulé           
-            # Formate les résultats de durées de collecte globale
-            headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte.keys()] # Récupérer le header : clés du dictionnaire            
-            #dureesTotales = list(self.dureeTotaleCollecte.values())           
-            dureesTotales = [] # Liste des durées            
-            for k in headerDureesTotales:
-                dureesTotales.append([self.dureeTotaleCollecte[k]])
-            self.dlg.displayResult(resultSimu = dureesTotales, header = headerDureesTotales)
-            # Affichage dans l'onglet Visualisation
-            headerDureesZones = [key_dict for key_dict in self.dureesCollecte[0].keys()]
-            dureesZones = []
-            for d in self.dureesCollecte:
-                dureesZones.append(list(d.values()))
-            self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones)
+            # self.dureesCollecte, self.dureeTotaleCollecte = self.collectDuration() 
+            #
+            d1, d2= SimuDePOs.collectDurationBassin(routingInfo = self.traj2ZST, 
+                                                    nbVehicules = self.paramInput["nbVehicules"],
+                                                    capaMax = self.paramInput["capaMaxMoy"], 
+                                                    duree_chgt = self.paramInput["dureeChgt"], 
+                                                    duree_dechgt = self.paramInput["dureeDechgt"])
+            self.dureesCollecte = self.dureesCollecte + d1
+            self.dureeTotaleCollecte.append(d2)
+        QMessageBox.information(None, 'Fin de calcul', 'Simulation de collecte terminée !')
+        print('Durée totale de la collecte : {} h'.format(self.dureeTotaleCollecte))
+        # Affichage dans l'onglet Résultats
+        self.dlg.recapScenario(paramScenario = self.paramInput) # Récapitule le scénario simulé           
+        # Formate les résultats de durées de collecte globale
+        #headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte.keys()] # Récupérer le header : clés du dictionnaire
+        headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte[0].keys()] # Récupérer le header : clés du dictionnaire            
+        #dureesTotales = list(self.dureeTotaleCollecte.values())           
+        dureesTotales = [] # Liste des durées            
+        for d in self.dureeTotaleCollecte:
+            dureesTotales.append(list(d.values())) 
+        self.dlg.displayResult(resultSimu = dureesTotales, header = headerDureesTotales)
+        # Affichage dans l'onglet Visualisation
+        headerDureesZones = [key_dict for key_dict in self.dureesCollecte[0].keys()]
+        dureesZones = []
+        for d in self.dureesCollecte:
+            dureesZones.append(list(d.values()))
+        self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones)
+        '''    
         out1, out2 = self.outputLayer() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
         QgsProject.instance().addMapLayer(out1)
         QgsProject.instance().addMapLayer(out2)
-        
+        '''
     def collectDuration(self):
         """ 
         Calcule les durées pour vider chaque zone de dépôt (AD ou ZST)
@@ -289,8 +340,70 @@ class SimuDePOs:
                         'distance_km' : chemin['distance_km'], 'duree_h' : dureeVidage}
             dureesCollecte.append(infoVidage)
         dureeTotaleCollecte = dureeCollecteBassin(dureesVidageZoneDepot, self.paramInput["nbVehicules"], nbHeuresTravailParJour = 8)
-        dureeTotaleCollecte['nbHeuresTravailParJour'] = 8
+        #dureeTotaleCollecte['nbHeuresTravailParJour'] = 8
         return dureesCollecte, dureeTotaleCollecte
+    
+    def collectDurationBassin(routingInfo, nbVehicules = 3, capaMax = 32, circuit = 0, duree_chgt = 1.5, duree_dechgt = 1.5):
+        """ 
+        Calcule la durée de collecte sur un bassin.
+        
+        Parameters
+        ----------
+        routingInfo : dict
+            Ensemble des informations pour calculer la durée de transfert des déchets.
+            Les clés du dictionnaire sont:
+                'idAD': id. de l'aire de dépose
+                'idZST': id. de la zone de stockage temporaire
+                'idExutoire' : id. de l'exutoire
+                'volume' : volumes de déchets à transférer
+                'distance_km' : distance entre la zone de chargement et de déchargement     
+        nbVehicules : int, optional 
+            Nombre de véhicules sur le bassin
+        capaMax: float, optional
+            capacité max moyenne d'un véhicule
+        circuit: int, optional
+            0 si transfert AD->ZST, 1 si transfert ZST->Exutoire
+            
+        Returns
+        --------
+        dureesCollecte: list of dict
+            Contient les durées de vidage de chaque zone de chargement. Les clés d'un dictionnaire sont :
+                'id_chgt' : id de la zone de chargement
+                'id_dechgt': id de la zone de déchargement
+                'volume_m3' : volume initial de déchets sur la zone de chargement                
+                'distance_km' : distance entre les deux zones de dépôt
+                'duree_h' : durée de vidage de la zone en heures
+        dureesParBassin: list of dict
+            Contient les durées de vidage totale de chaque bassin, en différentes unités. 
+            Les clés d'un dictionnaire sont :
+                'n_vehicules' : nombres de véhicules
+                'capacite_max_m3': capacité d'un véhicule
+                'duree_h' : durée en heures
+                'duree_jour': durée en jours
+                'duree_semaine': durée en semaine
+                'duree_mois' : durée en mois
+        """
+        dureesCollecte = [] # Liste des durées de vidage des zones de chargement
+        dureesVidageZoneDepot = [] # Indicateur de durée totale de la collecte
+        #dureesParBassin = []
+        if circuit == 0:
+            for chemin in routingInfo:
+                # Calcule la durée de vidage d'une zone de dépôt
+                dureeVidage = dureeVidageZoneDepot(volumeDechets = chemin['volume'],  capaMaxVehicule = capaMax,
+                                                distance_km = chemin['distance_km'],
+                                                duree_chgt_h = duree_chgt,
+                                                duree_dechgt_h = duree_dechgt) 
+                dureesVidageZoneDepot.append(dureeVidage)                                   
+                infoVidage = {'id_chgt' : chemin['idAD'], 'id_dechgt': chemin['idZST'],
+                            'volume_m3' : chemin['volume'], 'distance_km' : chemin['distance_km'], 'duree_h' : dureeVidage}
+                dureesCollecte.append(infoVidage)
+            dureeTotale = dureeCollecteBassin(dureesVidageZoneDepot,nbVehicules, nbHeuresTravailParJour = 8)
+            dureeTotale['n_vehicules'] = nbVehicules
+            dureeTotale['capacite_max_m3']= capaMax
+            #dureesParBassin.append(dureeTotale)
+        elif circuit == 1 :
+            pass        
+        return dureesCollecte, dureeTotale #dureesParBassin
     
     def outputLayer(self):
         """
@@ -301,12 +414,13 @@ class SimuDePOs:
             """
             Reprend la couche des AD en y ajoutant une colonne de durée de vidage de la zone de dépôt
             """
-            # Duplique la couche de ZST la couche d'entrée : 
+     
+            # Duplique la couche des AD en entrée : 
             # Sélectionne toutes les entités et les exporte dans une nouvelle couche
             self.paramInput['zdLayer1'].selectAll()
             adOutputLayer = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer1'], 'OUTPUT': 'memory:'})['OUTPUT']
             adOutputLayer.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer1'].crs()))
-            self.unselectAll() # Dé-sélectionne toutes les entités
+            self.paramInput['zdLayer1'].removeSelection() # Dé-sélectionne toutes les entités sélectionnées de la couche
             
             # Ajoute un nouveau champ
             adOutputLayerPrv = adOutputLayer.dataProvider()
@@ -321,7 +435,7 @@ class SimuDePOs:
                         adOutputLayer.updateFeature(feat)
                         break
             adOutputLayer.commitChanges()
-            adOutputLayer.setName('Zones de chargement')
+            adOutputLayer.setName('1 - Zones de chargement')
             
             """
             Reprend la couche des ZST en y ajoutant plusieurs colonnes pour indiquer:
@@ -329,12 +443,12 @@ class SimuDePOs:
             - le volume total de déchets apportés sur chaque ZST
             - si la collecte s'est fait par bassin : indiquer l'identifiant du bassin
             """
-            # Duplique la couche de ZST la couche d'entrée : 
+            # Duplique la couche des ZST en entrée : 
             # Sélectionne toutes les entités et les exporte dans une nouvelle couche
             self.paramInput['zdLayer2'].selectAll()
             zstOutputLayer = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
             zstOutputLayer.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
-            self.unselectAll() # Dé-sélectionne toutes les entités
+            self.paramInput['zdLayer2'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
             
             # Ajoute un champ "durée de collecte" et un champs "volume total de déchets"
             zstOutputLayerPrv = zstOutputLayer.dataProvider()
@@ -348,7 +462,7 @@ class SimuDePOs:
                 idZST = feat[self.idZoneDechgtLayer]
                 for resultat in self.dureesCollecte:     
                     if resultat['id_dechgt'] == idZST:
-                        volTotal = volTotal + resultat['volume']
+                        volTotal = volTotal + resultat['volume_m3']
                         if resultat['duree_h'] > dureeMax :
                             dureeMax = resultat['duree_h']
                 feat['duree_h'] = dureeMax
@@ -361,7 +475,7 @@ class SimuDePOs:
             'EXPRESSION' : 'vol_dechet_m3 <>0',
             'OUTPUT': 'memory:'}
             extractOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
-            extractOutput.setName('Zones de déchargement')
+            extractOutput.setName('1 - Zones de déchargement')
             
             return adOutputLayer, extractOutput
     
@@ -411,7 +525,7 @@ class SimuDePOs:
         dialog = ActeurParBassinDialog(self.paramInput['bassinLayer'], self.paramInput['idBassin'])
         result = dialog.exec_()
         if result:
-            self.affectationActeurBassin = dialog.dataAffectation
+            self.affectationActeurBassin = dialog.affectation2Dict()
             print(self.affectationActeurBassin)
         
     def startConfigChemins(self):
@@ -484,7 +598,7 @@ class SimuDePOs:
         result = dialog.exec_()
         if result:
             routing_output = dialog.calcul()
-            self.unselectAll() # Dé-sélectionne toutes les entités
+            # self.unselectAll() # Dé-sélectionne toutes les entités
             QgsProject.instance().addMapLayer(routing_output)
             # Récupère certains paramètres d'entrées nécessaires pour calculer les couches de sortie de simulation
             self.idZoneDechgtLayer = dialog.idZoneDechgtLayer # ID de la zone de déchargement
@@ -492,7 +606,7 @@ class SimuDePOs:
             self.volumeAttr = dialog.volumeDechets # Attribut volume de déchets
             dialog.close()
             
-    
+    '''
     def unselectAll(self):
         """ Désélectionne toutes les entités """
         
@@ -500,7 +614,7 @@ class SimuDePOs:
                 if a.objectName() == 'mActionDeselectAll':
                     a.trigger()
                     break
-                    
+    '''                
 FORM_CLASS_LOCATE_GISEMENTS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_localisation_sources_dechets.ui'))
 
@@ -981,6 +1095,17 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
         """ Récupère les informations du tableau des affectations """
         # TODO
         pass
+    
+    def affectation2Dict(self):
+        """ 
+        Transforme les affectations acteurs/bassins d'une liste de listes 
+        en dictionnaire de dictionnaires dont la clé est l'ID du bassin
+        
+        """
+        affectationDict = {}
+        for acteur in self.dataAffectation:
+            affectationDict[acteur[0]] = {'nom' : acteur[1], 'nb_vehicules' : int(acteur[2]), 'capaciteMaxMoy_m3': float(acteur[3])}
+        return affectationDict
         
 # UI Calcul de plus court chemin
 FORM_CLASS_CALCUL_CHEMIN, _ = uic.loadUiType(os.path.join(
@@ -1128,7 +1253,6 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         
         """
         self.getDataInput()
-        cheminsOutput = []
         odMat = None
         if self.bassinLayer is None : # Un seul bassin de collecte
             # Calcule les chemins entre les couches des zones de chargement et de déchargement en entrée
@@ -1177,7 +1301,7 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
                 print('Fusion de {} bassins'.format(len(odMatList)))
                 merge_param = {'LAYERS': odMatList,  'CRS': self.zoneChgtLayer.crs(), 'OUTPUT': 'memory:'}
                 odMat = processing.run("qgis:mergevectorlayers", merge_param)['OUTPUT']  
-                
+            self.bassinLayer.removeSelection()
         # Jointure de l'attribut volume de la couche des points de départ
         print('Jointure de de l\'attribut volume')
         paramJoin = {
@@ -1187,11 +1311,3 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         cheminsOutput = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
         # Renvoie le résultat
         return cheminsOutput
-
-    def unselectAll():
-        """ Désélectionne toutes les entités """
-        
-        for a in iface.attributesToolBar().actions():
-                if a.objectName() == 'mActionDeselectAll':
-                    a.trigger()
-                    break

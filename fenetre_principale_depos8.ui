@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>665</width>
-    <height>646</height>
+    <height>663</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -466,7 +466,7 @@ QToolBox::tab:selected { /* italicize selected tabs */
              <x>0</x>
              <y>0</y>
              <width>623</width>
-             <height>489</height>
+             <height>506</height>
             </rect>
            </property>
            <attribute name="label">
@@ -1561,6 +1561,13 @@ QToolBox::tab:selected { /* italicize selected tabs */
            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_20">
+           <item>
+            <widget class="QLabel" name="label_9">
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;N.B. : La durée de travail journalier est de 8h pour un camion&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+            </widget>
+           </item>
            <item>
             <widget class="QTabWidget" name="tabWidget_4">
              <property name="tabPosition">
