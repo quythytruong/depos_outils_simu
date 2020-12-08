@@ -28,7 +28,7 @@ from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets, QtCore, QtGui
 from qgis.PyQt.QtCore import Qt, QVariant
 
-from qgis.PyQt.QtWidgets import QTableWidgetItem
+from qgis.PyQt.QtWidgets import QTableWidgetItem, QMessageBox
 from .simu_damage2_main_window import Ui_MainWindow
 
 import processing
@@ -101,13 +101,19 @@ class SimuDamageMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         super(SimuDamageMainWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
         self.model = DamageTableModel(data = [])    
-        
+        self.damage = None
+        self.damageRepartition = None
+        self.buildingLayer = None
+        self.aleaZone = None
+        self.aleaAttr = None
+        self.output = None
         # Connect signals to slots
         # Push Buttons
         self.pushButton.clicked.connect(self.resetSimpleScenario)
         self.pushButton_3.clicked.connect(self.getAleaUniqueValues)
         self.pushButton_3.clicked.connect(self.startAleaDialog)
         self.pushButton_2.clicked.connect(self.simulateDamage)
+        self.export_pushButton.clicked.connect(self.startExportData)
         
     def resetSimpleScenario(self):
         # Reset data model
@@ -126,11 +132,13 @@ class SimuDamageMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             if self.checkPercentage():
                 self.updateSimpleScenario()
                 self.runSimpleScenario()
+                QMessageBox.information(None, "", "Simulation des endommagements terminée !")
             else :
                 print('La somme des valeurs entrées ne vaut pas 100%')
         elif self.toolBox.currentIndex() == 1:
             self.runAdvancedScenario()
-    
+            QMessageBox.information(None, "", "Simulation des endommagements terminée !")
+            
     def checkPercentage(self):
         ''' Vérifie que la somme des pourcentages entrés par l'utilisateur vaut 100% '''
         total = 0
@@ -157,51 +165,50 @@ class SimuDamageMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.model.updateDataSimpleScenario(damage_input)
     
     def runSimpleScenario(self):
-        layer = self.mMapLayerComboBox.currentLayer() # Couche des bâtiments
-        damage = self.model.simple_scen_damage
-        output = self.runDamageScenario(layer, damage)
-        QgsProject.instance().addMapLayer(output)
+        self.buildingLayer = self.mMapLayerComboBox.currentLayer() # Couche des bâtiments
+        self.damage = self.model.simple_scen_damage
+        self.output = self.runDamageScenario(self.buildingLayer, self.damage)
+        QgsProject.instance().addMapLayer(self.output)
         
     def runAdvancedScenario(self):
         ''' Simulation des endommagements selon différentes répartitions par zones d'aléas '''
         
-        buildings = self.mMapLayerComboBox.currentLayer() # Couche des bâtiments
-        aleaZone = self.mMapLayerComboBox_2.currentLayer() # Couche des aléas
-        damageRepartition = self.model.reformatDataAdvancedScenario()
+        self.buildingLayer = self.mMapLayerComboBox.currentLayer() # Couche des bâtiments
+        self.aleaZone = self.mMapLayerComboBox_2.currentLayer() # Couche des aléas
+        self.damageRepartition = self.model.reformatDataAdvancedScenario()
         
         # Duplique la couche de bâtiments la couche d'entrée : sélectionne toutes les entités et les exporte dans une nouvelle couche
-        buildings.selectAll() 
-        buildings_copy = processing.run("native:saveselectedfeatures", {'INPUT': buildings, 'OUTPUT': 'memory:'})['OUTPUT']
-        buildings_copy.setCrs(QgsCoordinateReferenceSystem(buildings.crs()))
+        self.buildingLayer.selectAll() 
+        buildings_copy = processing.run("native:saveselectedfeatures", {'INPUT': self.buildingLayer, 'OUTPUT': 'memory:'})['OUTPUT']
+        buildings_copy.setCrs(QgsCoordinateReferenceSystem(self.buildingLayer.crs()))
         self.unselectAll() # Désélectionne toutes les entités
         
         # Interaction avec la couche des aléas
-        aleaAttr = self.mFieldComboBox.currentText()
+        self.aleaAttr = self.mFieldComboBox.currentText()
         #aleaAttrIndex = provider.fieldNameIndex(aleaAttr) # Index du champ Aléa
         damagedLayers = [] # Liste des couches de bâtiments endommagés à fusionner        
-        for zone in aleaZone.getFeatures():
-            aleaZone.select([zone.id()]) # Sélectionne la zone
-            damage = damageRepartition[zone[aleaAttr]]
+        for zone in self.aleaZone.getFeatures():
+            self.aleaZone.select([zone.id()]) # Sélectionne la zone
+            damage = self.damageRepartition[zone[self.aleaAttr]]
             # Extrait les bâtiments qui intersectent la zone
             param_extract = {
                 'INPUT' : buildings_copy,
                 'PREDICATE': 0,
-                'INTERSECT': QgsProcessingFeatureSourceDefinition(aleaZone.id(), True),
+                'INTERSECT': QgsProcessingFeatureSourceDefinition(self.aleaZone.id(), True),
                 'OUTPUT': 'memory:'
             }
             bati_extracted = processing.run("native:extractbylocation", param_extract)['OUTPUT']
-            aleaZone.removeSelection() # Efface la sélection
+            self.aleaZone.removeSelection() # Efface la sélection
             #QgsProject.instance().addMapLayer(bati_extracted)            
-            output = self.runDamageScenario(bati_extracted, damage)
-            damagedLayers.append(output)
-            output.setName('Aléa ' + str(zone[aleaAttr]))
-            #QgsProject.instance().addMapLayer(output)
-            
+            outputAlea = self.runDamageScenario(bati_extracted, damage)
+            damagedLayers.append(outputAlea)
+            outputAlea.setName('Aléa ' + str(zone[self.aleaAttr]))
+
         # Cas des bâtiments qui sont disjoints de toute zone d'alés
         param_extract = {
                 'INPUT' : buildings_copy,
                 'PREDICATE': 2,
-                'INTERSECT': aleaZone,
+                'INTERSECT': self.aleaZone,
                 'OUTPUT': 'memory:'
             }
         bati_disjoint = processing.run("native:extractbylocation", param_extract)['OUTPUT']
@@ -212,19 +219,19 @@ class SimuDamageMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             'Fortement endommagé' : 0,
             'Détruit' : 0
         }
-        output = self.runDamageScenario(bati_disjoint, minDamage)
+        outputDisjoint = self.runDamageScenario(bati_disjoint, minDamage)
         #output = self.runDamageScenario(bati_disjoint, DamageTableModel.irma_damage) # Prend les valeurs par défaut (Irma)
-        damagedLayers.append(output)
+        damagedLayers.append(outputDisjoint)
         
         # Fusion des couches générées
         param_merge = {'LAYERS' : damagedLayers, 'OUTPUT' : 'memory:'}
-        fusion = processing.run('native:mergevectorlayers', param_merge)['OUTPUT']
-        count=fusion.fields().count() # count of layer fields
+        self.output = processing.run('native:mergevectorlayers', param_merge)['OUTPUT']
+        count=self.output.fields().count() # count of layer fields
         # remove a single field with an index
-        fusion.dataProvider().deleteAttributes([count-1, count-2])
-        fusion.updateFields()
-        fusion.setName('Endommagements par zone d\'aléa')
-        QgsProject.instance().addMapLayer(fusion)
+        self.output.dataProvider().deleteAttributes([count-1, count-2])
+        self.output.updateFields()
+        self.output.setName('endommagements')
+        QgsProject.instance().addMapLayer(self.output)
         
     def runDamageScenario(self, buildingLayer, damageRepartition):
         ''' Endommagement des bâtiments selon des niveaux de dommages fixés '''
@@ -269,7 +276,7 @@ class SimuDamageMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # remove a single field with an index
         fusion.dataProvider().deleteAttributes([count-1, count-2])
         fusion.updateFields()
-        fusion.setName('Endommagements (fusion)')
+        fusion.setName('endommagements')
         return fusion
 
     def unselectAll(self):
@@ -335,8 +342,80 @@ class SimuDamageMainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         zones_alea = result['UNIQUE_VALUES'].split(';')
         #print(zones_alea)
         return zones_alea
-        
     
+    def startExportData(self):
+        """ Ouvre la boîte de dialogue d'export des données """
+        dialog = ExportResultDialog()
+        result = dialog.exec_()
+        if result :
+            path = dialog.getFilePath()
+            print(path)
+            outputLayers = self.outputLayers()
+            param_export_gpkg = {'LAYERS' : outputLayers, 'OUTPUT' : path, 'OVERWRITE' : True, 'SAVE_STYLES' : True}
+            processing.run('native:package', param_export_gpkg)
+            QMessageBox.information(None, "Exportation réussie", "Données enregistrées à l'emplacement {}".format(path))
+            
+    def outputLayers(self):
+        """
+        Génère les couches de simulation avec les métadonnées.
+        
+        RETURNS
+        --------
+        outputs : list
+            La liste contient les éléments suivants :
+            - La couche des endommagements
+            - La couche d'emprise des bâtiments contient le chemin de la couche de bâtiments en entrée, le chemin de la couche de zonage (scénario muti-zone), 
+            le nom de l'attribut intensité utilisé (scénario multi-zone), la distribution des niveau d'endommagement (scénario mono-zone)
+            - La couche de zonage avec les niveaux endommagements fixés selon l'intensité (si scénario multi-zone)
+        
+        """
+        outputs = []
+        # Couche des endommagements
+        outputs.append(self.output)
+        # Emprise des bâtiments, 'TYPE':3 pour calculer l'enveloppe convexe
+        param_emprise = {'INPUT' : self.buildingLayer, 'TYPE': 3, 'OUTPUT': 'memory:'}
+        output1 = processing.run('qgis:minimumboundinggeometry', param_emprise)['OUTPUT']
+        # Ajoute des colonnes supplémentaires
+        output1Prv = output1.dataProvider()
+        output1Prv.addAttributes([QgsField('INPUT_COUCHE_BATI',QVariant.String), QgsField('INPUT_COUCHE_ZONAGE',QVariant.String),
+                                QgsField('INPUT_ATTR_INTENSITE',QVariant.String), QgsField('PROPORTION_DOMMAGES',QVariant.String)])
+        output1.updateFields()
+        output1.startEditing()
+        for feat in output1.getFeatures():
+            feat['INPUT_COUCHE_BATI'] = self.buildingLayer.source()
+            if self.aleaZone is None :
+                feat['INPUT_COUCHE_ZONAGE'] = 'Scénario mono-zone'
+                feat['INPUT_ATTR_INTENSITE'] = 'Scénario mono-zone'
+                feat['PROPORTION_DOMMAGES'] = str(self.damage)
+            else :
+                feat['INPUT_COUCHE_ZONAGE'] = self.aleaZone.source()
+                feat['INPUT_ATTR_INTENSITE'] = self.aleaAttr
+                feat['PROPORTION_DOMMAGES'] = 'Scénario multi-zone'
+            output1.updateFeature(feat)   
+            break
+        
+        output1.commitChanges()
+        output1.setName('emprise_simulation')
+        outputs.append(output1)
+        
+        if not self.aleaZone is None : # Cas simulation multi-zone
+            # Duplique la couche des aléas
+            self.aleaZone.selectAll() 
+            output2 = processing.run("native:saveselectedfeatures", {'INPUT': self.aleaZone, 'OUTPUT': 'memory:'})['OUTPUT']
+            output2.setCrs(QgsCoordinateReferenceSystem(self.aleaZone.crs()))
+            self.aleaZone.removeSelection() # Désélectionne toutes les entités de la couche de départ
+            output2.startEditing() # Mode édition
+            output2.addAttribute(QgsField('PROPORTION_DOMMAGES', QVariant.String)) # Ajoute champ PROPORTION_DOMMAGES
+            output2.updateFields()
+            for feat in output2.getFeatures():
+                intensite = feat[self.aleaAttr] # 'Peu ou pas endommagé', 'Moyennement endommagé', 'Fortement endommagé' ou 'Détruit'
+                feat['PROPORTION_DOMMAGES']= str(self.damageRepartition[intensite])
+                output2.updateFeature(feat)  
+            output2.commitChanges()
+            output2.setName('zonage')
+            outputs.append(output2)
+        return outputs
+
 FORM_CLASS_ALEA, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'alea_pourcentages_dialog.ui'))
 class AleaDamagePercentDialog(QtWidgets.QDialog, FORM_CLASS_ALEA):
@@ -396,4 +475,18 @@ class AleaDamagePercentDialog(QtWidgets.QDialog, FORM_CLASS_ALEA):
             data[zone_alea] = percent_damage
         #print(data)
         return data
+
+from qgis.gui import QgsFileWidget   
+FORM_CLASS_EXPORT_RESULT, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'export_result.ui'))
+class ExportResultDialog(QtWidgets.QDialog, FORM_CLASS_EXPORT_RESULT):
+    def __init__(self, parent=None):
+        """ Constructor. """
+        super(ExportResultDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.mQgsFileWidget.setStorageMode(QgsFileWidget.SaveFile) # Mode sauvegarde des données
+        self.mQgsFileWidget.setFilter('Geopackage (*.gpkg, *.GPKG)')  # Uniquement sous forme de fichier geopackage 
         
+    def getFilePath(self):
+        #print(self.mQgsFileWidget.filePath())
+        return self.mQgsFileWidget.filePath()
