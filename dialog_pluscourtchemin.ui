@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>414</width>
-    <height>333</height>
+    <width>506</width>
+    <height>379</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -78,6 +78,13 @@
           </item>
          </layout>
         </item>
+        <item>
+         <widget class="QPushButton" name="pushButton_3">
+          <property name="text">
+           <string>Spécifier les volumes de déchets par type</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
      </item>
@@ -107,6 +114,13 @@
            <widget class="QgsFieldComboBox" name="idFieldCBox_2"/>
           </item>
          </layout>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButton_4">
+          <property name="text">
+           <string>Spécifier les types acceptés</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -238,8 +252,8 @@
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>227</x>
-     <y>140</y>
+     <x>245</x>
+     <y>510</y>
     </hint>
     <hint type="destinationlabel">
      <x>157</x>
@@ -254,8 +268,8 @@
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>295</x>
-     <y>146</y>
+     <x>313</x>
+     <y>510</y>
     </hint>
     <hint type="destinationlabel">
      <x>286</x>
@@ -270,12 +284,12 @@
    <slot>setLayer(QgsMapLayer*)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>209</x>
-     <y>39</y>
+     <x>229</x>
+     <y>80</y>
     </hint>
     <hint type="destinationlabel">
-     <x>209</x>
-     <y>65</y>
+     <x>238</x>
+     <y>107</y>
     </hint>
    </hints>
   </connection>
@@ -286,12 +300,12 @@
    <slot>setLayer(QgsMapLayer*)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>157</x>
-     <y>46</y>
+     <x>177</x>
+     <y>80</y>
     </hint>
     <hint type="destinationlabel">
-     <x>162</x>
-     <y>100</y>
+     <x>238</x>
+     <y>135</y>
     </hint>
    </hints>
   </connection>
@@ -302,12 +316,12 @@
    <slot>setLayer(QgsMapLayer*)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>387</x>
-     <y>42</y>
+     <x>485</x>
+     <y>80</y>
     </hint>
     <hint type="destinationlabel">
-     <x>416</x>
-     <y>84</y>
+     <x>484</x>
+     <y>121</y>
     </hint>
    </hints>
   </connection>
