@@ -340,8 +340,8 @@ def dureeCollecteBassin(dureesVidageZoneDepot,
     dureeTotaleParJour = dureeTotale/nbHeuresTravailParJour
     durees = {'duree_h' : dureeTotale,
               'duree_jour': dureeTotaleParJour,
-              'duree_semaine': dureeTotaleParJour/7,
-              'duree_mois': dureeTotaleParJour/(7*4)
+              #'duree_semaine': dureeTotaleParJour/7,
+              #'duree_mois': dureeTotaleParJour/(7*4)
               }
     return durees
 
