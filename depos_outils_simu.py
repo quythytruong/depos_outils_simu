@@ -99,6 +99,8 @@ class SimuDePOs:
         self.dureeEquipedZST = None
         self.isPenaliteTrafic = None
         '''
+        self.paramInput = {} # Dictionnaire contenant les paramètres de simulation
+        self.outputLayers = [] # Liste des sorties de simulation (exportables)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -231,17 +233,29 @@ class SimuDePOs:
         # Connect tools to push buttons
         self.dlg.pushButton.clicked.connect(self.startChooseLocationAd)
         self.dlg.pushButton_4.clicked.connect(self.startActeurParBassin)
-        self.dlg.pushButton_7.clicked.connect(self.startConfigChemins)
+        self.dlg.pushButton_7.clicked.connect(self.startConfigChemins1)
+        self.dlg.pushButton_14.clicked.connect(self.startConfigChemins2)
+        self.dlg.pushButton_8.clicked.connect(self.startExportResult)
         self.dlg.pushButton_simul.clicked.connect(self.runCollecte)
-        self.dlg.pushButtonCalculCheminVersZST.clicked.connect(self.startPlusCourtChemin)
+        self.dlg.pushButtonCalculCheminVersZST.clicked.connect(self.startPlusCourtChemin1)
+        self.dlg.pushButtonCalculCheminVersExutoire.clicked.connect(self.startPlusCourtChemin2)
         # Menu Gisements de Déchets
         self.dlg.actionLocalisation_des_sources_de_d_chets_post_ouragans.triggered.connect(self.startLocateGisements)
        
     
     def runCollecte(self):
         """ Run waste collection simulation """
-        
         self.paramInput = self.dlg.getInput() 
+        
+        if self.paramInput['simuCircuit1'] : # Cas circuit 1
+            self.runCircuit1()
+        if self.paramInput['simuCircuit2'] : # Cas circuit 2
+            self.runCircuit2()
+        # Affichage dans l'onglet Résultats
+        self.dlg.recapScenario(paramScenario = self.paramInput) # Récapitule le scénario simulé  
+    
+    def runCircuit1(self):
+        """ Collecte du circuit n° 1 : des gisements vers les ZST """
         self.dureeTotaleCollecte = []
         self.dureesCollecte= [] 
             
@@ -270,7 +284,7 @@ class SimuDePOs:
                 for zone in extractChgt.getFeatures():
                     id_origin = zone[self.idZoneChgtLayer]
                     for chemin in self.traj2ZST: # parcourt une liste de dictionnaires
-                        if chemin['idAD'] == id_origin :
+                        if chemin['idZoneChargement'] == id_origin :
                             select_chemins.append(chemin)
                             break
                 print('select_chemins = {}'.format(select_chemins))
@@ -282,13 +296,11 @@ class SimuDePOs:
                 self.dureesCollecte = self.dureesCollecte + d1
                 d2['idBassin'] = idBassin
                 self.dureeTotaleCollecte.append(d2)                                                        
-                # Constitue une liste des ID des zones de chargement contenues dans le bassin
-                # Sélectionne les chemins dont l'ID origine est contenu dans la liste constituée précédemment
+            # Constitue une liste des ID des zones de chargement contenues dans le bassin
+            # Sélectionne les chemins dont l'ID origine est contenu dans la liste constituée précédemment
             self.paramInput['bassinLayer'].removeSelection()
             print('Finally, self.dureesCollecte = {}\n AND self.dureeTotaleCollecte = {}'.format(self.dureesCollecte, self.dureeTotaleCollecte))
-        else : 
-            # self.dureesCollecte, self.dureeTotaleCollecte = self.collectDuration() 
-            #
+        else :  
             d1, d2= SimuDePOs.collectDurationBassin(routingInfo = self.traj2ZST, 
                                                     nbVehicules = self.paramInput["nbVehicules"],
                                                     capaMax = self.paramInput["capaMaxMoy"], 
@@ -296,14 +308,11 @@ class SimuDePOs:
                                                     duree_dechgt = self.paramInput["dureeDechgt"])
             self.dureesCollecte = self.dureesCollecte + d1
             self.dureeTotaleCollecte.append(d2)
-        QMessageBox.information(None, 'Fin de calcul', 'Simulation de collecte terminée !')
+        QMessageBox.information(None, 'Fin de calcul circuit n°1', 'Simulation de collecte terminée !')
         print('Durée totale de la collecte : {} h'.format(self.dureeTotaleCollecte))
-        # Affichage dans l'onglet Résultats
-        self.dlg.recapScenario(paramScenario = self.paramInput) # Récapitule le scénario simulé           
+                 
         # Formate les résultats de durées de collecte globale
-        #headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte.keys()] # Récupérer le header : clés du dictionnaire
         headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecte[0].keys()] # Récupérer le header : clés du dictionnaire            
-        #dureesTotales = list(self.dureeTotaleCollecte.values())           
         dureesTotales = [] # Liste des durées            
         for d in self.dureeTotaleCollecte:
             dureesTotales.append(list(d.values())) 
@@ -315,11 +324,47 @@ class SimuDePOs:
             dureesZones.append(list(d.values()))
         self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones)
             
-        output = self.outputLayer() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
+        output = self.outputLayerCircuit1() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
         for out in output :            
             QgsProject.instance().addMapLayer(out)
-        #QgsProject.instance().addMapLayer(out2)
+            self.outputLayers.append(out)
+        print("Nombre total de couches de sortie de simulation : {}".format(len(self.outputLayers)))
         
+ 
+    def runCircuit2(self):
+        """ Collecte du cricuit n°2 : des ZST vers les exutoires """
+        
+        self.dureeTotaleCollecteVersExutoire = []
+        self.dureesCollecteZST= [] 
+        d1, d2= SimuDePOs.collectDurationBassin(routingInfo = self.traj2Exutoire, 
+                                                    nbVehicules = self.paramInput["nbVehicules2"],
+                                                    capaMax = self.paramInput["capaMaxMoy2"], 
+                                                    duree_chgt = self.paramInput["dureeChgt2"], 
+                                                    duree_dechgt = self.paramInput["dureeDechgt2"])
+        self.dureesCollecteZST = self.dureesCollecteZST + d1
+        self.dureeTotaleCollecteVersExutoire.append(d2)
+        QMessageBox.information(None, 'Fin de calcul circuit n°2', 'Simulation de collecte terminée !')
+        print('Durée totale de la collecte : {} h'.format(self.dureeTotaleCollecteVersExutoire))
+        # Affichage dans l'onglet Résultat
+        
+        # Formate les résultats de durées de collecte globale
+        headerDureesTotales = [key_dict for key_dict in self.dureeTotaleCollecteVersExutoire[0].keys()] # Récupérer le header : clés du dictionnaire            
+        dureesTotales = [] # Liste des durées            
+        for d in self.dureeTotaleCollecteVersExutoire:
+            dureesTotales.append(list(d.values())) 
+        self.dlg.displayResult(resultSimu = dureesTotales, header = headerDureesTotales, circuit = 2)
+        # Affichage dans l'onglet Visualisation
+        headerDureesZones = [key_dict for key_dict in self.dureesCollecteZST[0].keys()]
+        dureesZones = []
+        for d in self.dureesCollecteZST:
+            dureesZones.append(list(d.values()))
+        self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones, circuit = 2)
+        '''    
+        output = self.outputLayerCircuit2() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
+        for out in output :            
+            QgsProject.instance().addMapLayer(out)
+        '''
+
     def collectDuration(self):
         """ 
         Calcule les durées pour vider chaque zone de dépôt (AD ou ZST)
@@ -337,7 +382,7 @@ class SimuDePOs:
                                                 duree_chgt_h = self.paramInput["dureeChgt"],
                                                 duree_dechgt_h = self.paramInput["dureeDechgt"]) 
             dureesVidageZoneDepot.append(dureeVidage)                                   
-            infoVidage = {'id_chgt' : chemin['idAD'], 'id_dechgt': chemin['idZST'],
+            infoVidage = {'id_chgt' : chemin['idZoneChargement'], 'id_dechgt': chemin['idZoneDechargement'],
                         'volume_m3' : chemin['volume'], 
                         'distance_km' : chemin['distance_km'], 'duree_h' : dureeVidage}
             dureesCollecte.append(infoVidage)
@@ -351,11 +396,11 @@ class SimuDePOs:
         
         Parameters
         ----------
-        routingInfo : dict
+        routingInfo : list of dict
             Ensemble des informations pour calculer la durée de transfert des déchets.
             Les clés du dictionnaire sont:
-                'idAD': id. de l'aire de dépose
-                'idZST': id. de la zone de stockage temporaire
+                'idZoneChargement': id. de l'aire de dépose
+                'idZoneDechargement': id. de la zone de stockage temporaire
                 'idExutoire' : id. de l'exutoire
                 'volume' : volumes de déchets à transférer
                 'distance_km' : distance entre la zone de chargement et de déchargement     
@@ -395,7 +440,7 @@ class SimuDePOs:
                                                 duree_chgt_h = duree_chgt,
                                                 duree_dechgt_h = duree_dechgt) 
                 dureesVidageZoneDepot.append(dureeVidage)                                   
-                infoVidage = {'id_chgt' : chemin['idAD'], 'id_dechgt': chemin['idZST'],
+                infoVidage = {'id_chgt' : chemin['idZoneChargement'], 'id_dechgt': chemin['idZoneDechargement'],
                             'volume_m3' : chemin['volume'], 'distance_km' : chemin['distance_km'], 'duree_h' : dureeVidage}
                 dureesCollecte.append(infoVidage)
             dureeTotale = dureeCollecteBassin(dureesVidageZoneDepot,nbVehicules, nbHeuresTravailParJour = 8)
@@ -403,9 +448,10 @@ class SimuDePOs:
             dureeTotale['capacite_max_m3']= capaMax
         elif circuit == 1 :
             pass        
+        print('Durées de collectes par zone de chgt : {} \n Durée totale de collecte : {}'.format(dureesCollecte, dureeTotale) )
         return dureesCollecte, dureeTotale #dureesParBassin
     
-    def outputLayer(self):
+    def outputLayerCircuit1(self):
         """
         Génère des couches de données en fin de simulation.
         
@@ -435,7 +481,7 @@ class SimuDePOs:
                         adOutput.updateFeature(feat)
                         break
             adOutput.commitChanges()
-            adOutput.setName('1 - Zones de chargement')
+            adOutput.setName('1 - output_zones_chargement')
             
             """
             Reprend la couche des ZST en y ajoutant plusieurs colonnes pour indiquer:
@@ -474,7 +520,7 @@ class SimuDePOs:
             'EXPRESSION' : 'vol_dechet_m3 <>0',
             'OUTPUT': 'memory:'}
             zstExtractOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
-            zstExtractOutput.setName('1 - Zones de déchargement')
+            zstExtractOutput.setName('1 - output_zones_dechargement')
             
             """ 
             Couche portant la durée de collecte sur la zone :
@@ -498,8 +544,8 @@ class SimuDePOs:
                 bassinOutputPrv = bassinOutput.dataProvider()
                 bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
                                                 QgsField('duree_jour',QVariant.Double),
-                                                QgsField('duree_semaine',QVariant.Double), 
-                                                QgsField('duree_mois',QVariant.Double),
+                                                #QgsField('duree_semaine',QVariant.Double), 
+                                                #QgsField('duree_mois',QVariant.Double),
                                                 QgsField('n_vehicules',QVariant.Int),
                                                 QgsField('capacite_max_m3',QVariant.Double)])
                 bassinOutput.updateFields()
@@ -509,8 +555,8 @@ class SimuDePOs:
                         if feat[self.paramInput['idBassin']] == info['idBassin']:
                             feat['duree_h'] = info['duree_h']
                             feat['duree_jour'] = info['duree_jour']
-                            feat['duree_semaine'] = info['duree_semaine']
-                            feat['duree_mois'] = info['duree_mois']
+                            #feat['duree_semaine'] = info['duree_semaine']
+                            #feat['duree_mois'] = info['duree_mois']
                             feat['n_vehicules'] = info['n_vehicules']
                             feat['capacite_max_m3'] = info['capacite_max_m3']
                             bassinOutput.updateFeature(feat)   
@@ -527,8 +573,8 @@ class SimuDePOs:
                 bassinOutputPrv = bassinOutput.dataProvider()
                 bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
                                                 QgsField('duree_jour',QVariant.Double),
-                                                QgsField('duree_semaine',QVariant.Double), 
-                                                QgsField('duree_mois',QVariant.Double),
+                                                #QgsField('duree_semaine',QVariant.Double), 
+                                                #QgsField('duree_mois',QVariant.Double),
                                                 QgsField('n_vehicules',QVariant.Int),
                                                 QgsField('capacite_max_m3',QVariant.Double)])
                 bassinOutput.updateFields()
@@ -537,13 +583,13 @@ class SimuDePOs:
                     info = self.dureeTotaleCollecte[0]
                     feat['duree_h'] = info['duree_h']
                     feat['duree_jour'] = info['duree_jour']
-                    feat['duree_semaine'] = info['duree_semaine']
-                    feat['duree_mois'] = info['duree_mois']
+                    #feat['duree_semaine'] = info['duree_semaine']
+                    #feat['duree_mois'] = info['duree_mois']
                     feat['n_vehicules'] = info['n_vehicules']
                     feat['capacite_max_m3'] = info['capacite_max_m3']  
                     bassinOutput.updateFeature(feat)         
                 bassinOutput.commitChanges()
-            bassinOutput.setName('1 - Durées par zone')
+            bassinOutput.setName('1 - output_durees_par_zones')
             return [bassinOutput, adOutput, zstExtractOutput]
             
     
@@ -559,6 +605,10 @@ class SimuDePOs:
         result = dialog.exec_()
         if result:
             dialog.getPointsFromSelect()
+            dialog2 = AskQuantification()
+            result2 = dialog2.exec_()
+            if result2:
+                pass
 
     def startChooseLocationAd(self):
         """ Ouvre une boîte de dialogue permettant choisir le mode de localisation des AD """
@@ -595,9 +645,11 @@ class SimuDePOs:
         if result:
             self.affectationActeurBassin = dialog.affectation2Dict()
             print(self.affectationActeurBassin)
+            self.fichierActeurCSV = dialog.csvFilePath
+            print("Fichier CSV des acteurs {}".format(self.fichierActeurCSV))
         
-    def startConfigChemins(self):
-        """ Ouvre une boîte de dialogue pour configurer les colonnes à utiliser dans la couche des chemins """
+    def startConfigChemins1(self):
+        """ Ouvre une boîte de dialogue pour configurer les colonnes à utiliser dans la couche des chemins vers les ZST """
         
         dialog = ConfigAttrCheminsDialog(None)
         dialog.cheminLayer.setLayer(self.dlg.input_layer_ad_zst.currentLayer())
@@ -606,15 +658,37 @@ class SimuDePOs:
             self.routingInfo = dialog.getParamInput()
             print(self.routingInfo)
             self.loadChemins(cheminLayer = self.routingInfo['cheminLayer'], 
-                            originIdField = self.routingInfo['idADField'],
-                            destinationIdField = self.routingInfo['idZSTField'],
+                            originIdField = self.routingInfo['idChgtField'],  
+                            destinationIdField = self.routingInfo['idDechgtField'],
                             distanceField = self.routingInfo['distanceField'],
                             volumeField = self.routingInfo['volumeField'],
                             distanceUnit = self.routingInfo['distUnit'],
-                            circuit = 0)
-            QMessageBox.information(None, "Fin de calcul", "Données chargées !")                    
+                            typeDechet = self.routingInfo['typageField'],
+                            circuit = 1)
+            QMessageBox.information(None, "Fin de calcul", "Données chargées !")       
+            self.outputLayers.append(self.routingInfo['cheminLayer'])
+            
+    def startConfigChemins2(self):
+        """ Ouvre une boîte de dialogue pour configurer les colonnes à utiliser dans la couche des chemins vers les exutoires """
+        
+        dialog = ConfigAttrCheminsDialog(None)
+        dialog.cheminLayer.setLayer(self.dlg.input_layer_zst_exutoire.currentLayer())
+        result = dialog.exec_()
+        if result:
+            self.routingInfo = dialog.getParamInput()
+            print(self.routingInfo)
+            self.loadChemins(cheminLayer = self.routingInfo['cheminLayer'], 
+                            originIdField = self.routingInfo['idChgtField'],
+                            destinationIdField = self.routingInfo['idDechgtField'],
+                            distanceField = self.routingInfo['distanceField'],
+                            volumeField = self.routingInfo['volumeField'],
+                            distanceUnit = self.routingInfo['distUnit'],
+                            typeDechet = self.routingInfo['typageField'],
+                            circuit = 2)
+            QMessageBox.information(None, "Fin de calcul", "Données chargées !")    
+            self.outputLayers.append(self.routingInfo['cheminLayer'])            
     
-    def loadChemins(self, cheminLayer, originIdField, destinationIdField, distanceField, volumeField, distanceUnit = 'm', circuit = 0):
+    def loadChemins(self, cheminLayer, originIdField, destinationIdField, distanceField, volumeField, typeDechet=None, distanceUnit = 'm', circuit = 1):
         """ Charge les chemins entre les zones de dépôt
         
         Parameters
@@ -634,31 +708,37 @@ class SimuDePOs:
         circuit: int, optional
             Vaut 0 si circuit AD->ZST (par défaut), vaut 1 si circuit ZST-> exutoire
             
-        """
-        
-        if circuit == 0: # Trajectoires vers ZST
-            print(cheminLayer.featureCount())
+        """        
+        #print(cheminLayer.featureCount())
+        if circuit == 1: # Trajectoires vers ZST
             self.traj2ZST = []
-            for elem in cheminLayer.getFeatures():
-                if distanceUnit == 'm':
-                    dist_km = float(elem[distanceField])/1000
-                else :
-                    dist_km = elem[distanceField]
-                itineraire = {'idAD': elem[originIdField],
-                             'idZST': elem[destinationIdField],
+        elif circuit == 2 :
+            self.traj2Exutoire = []
+        for elem in cheminLayer.getFeatures():
+            if distanceUnit == 'm':
+                dist_km = float(elem[distanceField])/1000
+            else :
+                dist_km = elem[distanceField]
+            itineraire = {'idZoneChargement': elem[originIdField],
+                             'idZoneDechargement': elem[destinationIdField],
                              'distance_km': dist_km,
                              'volume' : elem[volumeField]
                             }
+            if not typeDechet is None and typeDechet != '':
+                itineraire['type_dechet'] = typeDechet
+            if circuit == 1: # Trajectoires vers ZST
                 self.traj2ZST.append(itineraire)
-            #print("Trajectoires chargées :\n {}".format(self.traj2ZST))
-        
-        elif circuit == 1: # Trajectoires ZST->ISDND (A faire plus tard)
-            pass
+            elif circuit == 2 :
+                self.traj2Exutoire.append(itineraire)
+        if circuit == 1:
+            print("Trajectoires vers ZST :\n {}".format(self.traj2ZST))
+        elif circuit == 2 :
+            print("Trajectoires vers exutoires :\n {}".format(self.traj2Exutoire))
 
-    def startPlusCourtChemin(self):
-        """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins """
+    def startPlusCourtChemin1(self):
+        """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins vers les ZST """
         
-        self.paramInput = self.dlg.getInput()
+        self.paramInput = self.dlg.getInput()       
         dialog = PlusCourtChemin(isCollecteParBassin = self.paramInput['isCollecteParBassin'], 
         bassinLayer = self.paramInput['bassinLayer'], idBassin = self.paramInput['idBassin'])
         dialog.zonechgtLayerInput.setLayer(self.dlg.suivi_couche_ad.currentLayer())
@@ -673,16 +753,115 @@ class SimuDePOs:
             self.idZoneChgtLayer = dialog.idZoneChgtLayer # ID de la zone de chargement
             self.volumeAttr = dialog.volumeDechets # Attribut volume de déchets
             dialog.close()
-            
-    '''
-    def unselectAll(self):
-        """ Désélectionne toutes les entités """
+
+    def startPlusCourtChemin2(self):
+        """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins vers les exutoires """
         
-        for a in iface.attributesToolBar().actions():
-                if a.objectName() == 'mActionDeselectAll':
-                    a.trigger()
-                    break
-    '''                
+        self.paramInput = self.dlg.getInput()
+        dialog = PlusCourtChemin(isCollecteParBassin = False, circuit = 2)
+        dialog.zonechgtLayerInput.setLayer(self.dlg.suivi_couche_zst.currentLayer())
+        dialog.zoneDechgtLayerInput.setLayer(self.dlg.suivi_couche_exutoire.currentLayer())
+        result = dialog.exec_()
+        if result:
+            routing_output = dialog.calcul()
+            # self.unselectAll() # Dé-sélectionne toutes les entités
+            QgsProject.instance().addMapLayer(routing_output)
+            # Récupère certains paramètres d'entrées nécessaires pour calculer les couches de sortie de simulation
+            self.idZoneDechgtLayer = dialog.idZoneDechgtLayer # ID de la zone de déchargement
+            self.idZoneChgtLayer = dialog.idZoneChgtLayer # ID de la zone de chargement
+            self.volumeAttr = dialog.volumeDechets # Attribut volume de déchets
+            dialog.close()
+    
+    def startExportResult(self):
+        dialog = ExportResultDialog()
+        result = dialog.exec_()
+        if result :
+            path = dialog.getFilePath()
+            print(path)
+            outputLayers = self.outputLayers
+            print("{} couches de sortie à exporter :".format(len(outputLayers)))
+            for out in outputLayers :
+                print(out.name())
+            param_export_gpkg = {'LAYERS' : outputLayers, 'OUTPUT' : path, 'OVERWRITE' : True, 'SAVE_STYLES' : True}
+            processing.run('native:package', param_export_gpkg)
+            QMessageBox.information(None, "Exportation réussie", "Données enregistrées à l'emplacement {}".format(path))
+            # Ecriture des métadonnées
+            textFilePath = path[0:-5] + ".txt"
+            metaOutFile = open(textFilePath, "w") # open a (new) file to write
+            
+            metaOutFile.write("Paramétrage de la simulation \n")
+            metaOutFile.write("\n")
+            metaOutFile.write("Circuit 1 (gisements -> ZST): " + str(self.paramInput['simuCircuit1']) + " \n ")
+            metaOutFile.write("\n")
+            if self.paramInput['simuCircuit1']:
+                metaOutFile.write("*** Zones de dépôt ***\n")
+                metaOutFile.write("- Couche gisements : ")
+                if not self.paramInput["zdLayer1"] is None :
+                    metaOutFile.write(self.paramInput["zdLayer1"].name())
+                metaOutFile.write("\n")
+                metaOutFile.write("- Couche ZST : ")
+                if not self.paramInput["zdLayer2"] is None :
+                    print(self.paramInput["zdLayer2"].name())
+                    metaOutFile.write(self.paramInput["zdLayer2"].name())
+                metaOutFile.write("\n")
+                metaOutFile.write("\n")
+                metaOutFile.write("*** Modalités de collecte ***\n")
+                metaOutFile.write("Collecte par bassin : " + str(self.paramInput["isCollecteParBassin"]) + "\n")
+                metaOutFile.write("- Couche bassins de collecte : ")
+                if self.paramInput["isCollecteParBassin"]:
+                    metaOutFile.write(self.paramInput["bassinLayer"].name())
+                    metaOutFile.write("\n")    
+                    print(self.fichierActeurCSV)
+                    metaOutFile.write("Fichier d'affectation des acteurs de collecte aux bassins : " + self.fichierActeurCSV)
+                    metaOutFile.write("\n")
+                else :
+                    metaOutFile.write("Nombre de véhicules : " + str(self.paramInput["nbVehicules"]) + "\n")
+                    metaOutFile.write("Capacité max. moyenne : " + str(self.paramInput["capaMaxMoy"]) + "\n")
+                metaOutFile.write("\n")
+                metaOutFile.write("Différenciation des types des déchets (=tri) : " + str(self.paramInput["isTri"]) + "\n")
+                metaOutFile.write("*** Flux de déchets ***\n")
+                metaOutFile.write("- Couche des chemins du circuit 1 : " )
+                if not self.paramInput["chemin2ZSTLayer"] is None :
+                    print(self.paramInput["chemin2ZSTLayer"].name())
+                    metaOutFile.write(self.paramInput["chemin2ZSTLayer"].name())
+                metaOutFile.write("\n")
+                if not self.paramInput["chemin2ExutoireLayer"] is None:
+                    print(self.paramInput["chemin2ExutoireLayer"].name())
+                    metaOutFile.write("- Couche des chemins du circuit 2 : " + self.paramInput["chemin2ExutoireLayer"].name())
+                metaOutFile.write("\n")
+                metaOutFile.write("*** Durées des opérations ***\n")
+                metaOutFile.write("Chargement (h): " + str(self.paramInput["dureeChgt"]) + " - Déchargement (h) : "+ str(self.paramInput["dureeDechgt"]))
+                metaOutFile.write("\n")
+                metaOutFile.write("Durée de chargement en fonction \n")
+                metaOutFile.write(" - du volume de déchets : " + str(self.paramInput["isDureeChgtSelonVolume"]))
+                metaOutFile.write("\n")
+                metaOutFile.write(" - des équipements (ex : bennes) : " + str(self.paramInput["isDureeChgtSelonEquipment"]))
+                metaOutFile.write("\n")
+                metaOutFile.write("Durée de déchargement en fonction \n")
+                metaOutFile.write(" - du volume de déchets : " + str(self.paramInput["isDureeDechgtSelonVolume"]) + "\n")
+                metaOutFile.write(" - des équipements (ex : bennes) : " + str(self.paramInput["isDureeDechgtSelonEquipment"]) + "\n")   
+                metaOutFile.write("Pénalité de trafic " + str(self.paramInput["isPenaliteTrafic"]))
+                metaOutFile.write("\n")
+            metaOutFile.write("\n")
+            metaOutFile.write("Circuit 2 (ZST -> Exutoire): " + str(self.paramInput['simuCircuit2']) + " \n ")
+            if self.paramInput['simuCircuit2'] :
+                metaOutFile.write("*** Zones de dépôt ***\n")
+                metaOutFile.write("- Couche ZST : " )
+                if not self.paramInput["zdLayer2"] is None :
+                    print(self.paramInput["zdLayer2"].name())
+                    metaOutFile.write(self.paramInput["zdLayer2"].name())
+                metaOutFile.write("\n")
+                if not self.paramInput["zdLayer3"] is None :
+                    print(self.paramInput["zdLayer3"].name())
+                    metaOutFile.write("- Couche exutoires : " + self.paramInput["zdLayer3"].name() + "\n")
+                metaOutFile.write("\n")
+                metaOutFile.write("*** Modalités de collecte ***\n")
+                metaOutFile.write("Nombre de véhicules : " + str(self.paramInput["nbVehicules2"]) + "\n")
+                metaOutFile.write("Capacité max. moyenne : " + str(self.paramInput["capaMaxMoy2"]) + "\n")
+                metaOutFile.write("Circuit 2 - Chargement (h): " + str(self.paramInput["dureeChgt2"]) + " - Déchargement (h) : "+ str(self.paramInput["dureeDechgt2"]))
+                
+            metaOutFile.close()
+
 FORM_CLASS_LOCATE_GISEMENTS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_localisation_sources_dechets.ui'))
 
@@ -716,6 +895,7 @@ class LocateGisementsDialog(QtWidgets.QDialog, FORM_CLASS_LOCATE_GISEMENTS):
         if self.mFieldExpressionWidget.isExpression():
             exp = QgsExpression(self.mFieldExpressionWidget.currentText())
             print(exp)
+            print("self.mFieldExpressionWidget.expression() : {}".format(self.mFieldExpressionWidget.expression()))
             context = QgsExpressionContext()
             context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer_duplicata))
                 
@@ -724,6 +904,7 @@ class LocateGisementsDialog(QtWidgets.QDialog, FORM_CLASS_LOCATE_GISEMENTS):
             for f in layer_duplicata.getFeatures():
                 context.setFeature(f)
                 f['superficie'] = exp.evaluate(context)
+                print("print(exp.evaluate(context)) :{}".format(exp.evaluate(context)))
                 layer_duplicata.updateFeature(f)
             layer_duplicata.commitChanges()
             selectedFields.append('superficie')    
@@ -734,7 +915,7 @@ class LocateGisementsDialog(QtWidgets.QDialog, FORM_CLASS_LOCATE_GISEMENTS):
         for field in layer_duplicata.dataProvider().fields():
             if field.name() not in selectedFields:
                 unselectedFields.append(field.name())
-            print([f for f in unselectedFields])            
+            #print([f for f in unselectedFields])            
         
         # 2. Extract rows that match the damage values input
         endommagementAttr = self.mFieldComboBox.currentText()
@@ -752,7 +933,17 @@ class LocateGisementsDialog(QtWidgets.QDialog, FORM_CLASS_LOCATE_GISEMENTS):
         centroids['native:centroids_1:Aires de dépose (centroïdes)'].setCrs(QgsCoordinateReferenceSystem(layer_duplicata.crs()))
         centroids['native:centroids_1:Aires de dépose (centroïdes)'].setName('gisements déchets')
         QgsProject.instance().addMapLayer(centroids['native:centroids_1:Aires de dépose (centroïdes)'])
+        QMessageBox.information(None, "", "Simulation des endommagements terminée !")  
 
+FORM_CLASS_ASK_QUANTIFICATION, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'dialog_demande_quantification_dechets.ui'))
+class AskQuantification(QtWidgets.QDialog, FORM_CLASS_ASK_QUANTIFICATION):
+    def __init__(self, parent=None):
+        """Constructor."""
+        super(AskQuantification, self).__init__(parent)
+        self.setupUi(self)
+
+    
 # UI Localisation des aires de dépose
 FORM_CLASS_LOCATE_AD, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_localisation_ad1.ui'))
@@ -1086,7 +1277,7 @@ class OptimisationVolumeDistanceDialog(QtWidgets.QDialog, FORM_CLASS_OPTIM):
         self.setupUi(self)  
         
 FORM_CLASS_CHEMIN, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'dialog_config_chemins_ad_zst.ui'))
+    os.path.dirname(__file__), 'dialog_config_chemins.ui'))
 class ConfigAttrCheminsDialog(QtWidgets.QDialog, FORM_CLASS_CHEMIN):
     def __init__(self, cheminLayer, parent=None):
         """Constructor."""
@@ -1101,11 +1292,12 @@ class ConfigAttrCheminsDialog(QtWidgets.QDialog, FORM_CLASS_CHEMIN):
         """ Get info about disposal sites routing layer """
         param = {}
         param['cheminLayer'] = self.cheminLayer.currentLayer()
-        param['idADField'] = self.idAdCBox.currentText()
-        param['idZSTField'] = self.idZstCBox.currentText()
+        param['idChgtField'] = self.idZChgtCBox.currentText()
+        param['idDechgtField'] = self.idZDechgtCBox.currentText()
         param['distanceField'] = self.distanceCBox.currentText()
         param['distUnit'] = self.unitCBox.currentText()
         param['volumeField'] = self.volumeCBox.currentText()
+        param['typageField'] = self.typageCBox.currentText()
         return param
 
 # UI Acteurs par bassin
@@ -1140,9 +1332,9 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
     def importCSV(self):
         """ Importe un tableau d'affectations acteurs/bassins sous forme de fichier CSV """
         import csv
-        csvFilePath = self.mQgsFileWidget.filePath()
+        self.csvFilePath = self.mQgsFileWidget.filePath()
         #QtWidgets.QMessageBox.information(None, "Fin de calcul", self.mQgsFileWidget.filePath())
-        with open(csvFilePath, newline='') as csvfile:
+        with open(self.csvFilePath, newline='') as csvfile:
             csv_reader = csv.reader(csvfile, delimiter=';')
             rows = list(csv_reader)
             totalrows = len(rows) # Nombre de lignes
@@ -1179,7 +1371,7 @@ class ActeurParBassinDialog(QtWidgets.QDialog, FORM_CLASS_ACTEUR_BASSIN):
 FORM_CLASS_CALCUL_CHEMIN, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dialog_pluscourtchemin.ui'))
 class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
-    def __init__(self, isCollecteParBassin = False, bassinLayer = None, idBassin = None, parent=None):
+    def __init__(self, isCollecteParBassin = False, bassinLayer = None, idBassin = None, isTri = False, circuit =1, parent=None):
         """Constructor."""
         super(PlusCourtChemin, self).__init__(parent)
         self.setupUi(self)  
@@ -1189,6 +1381,7 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         self.zoneDechgtLayerInput.setLayer(None)
         
         self.idBassin = idBassin
+        
         if isCollecteParBassin :
             self.frameBassin.setHidden(False)
             self.bassinLayer_CBox.setLayer(bassinLayer)
@@ -1196,7 +1389,33 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             self.frameBassin.setHidden(True)
             self.bassinLayer_CBox.setLayer(None)
         self.tableCorrespondance = None
-            
+        '''
+        if isTri :
+            self.optionTri.setHidden(False)
+        else :
+            self.optionTri.setHidden(True)
+        '''
+        self.circuit = circuit 
+                
+        self.pushButton_3.clicked.connect(self.startTypageDechetsChgt)
+        self.pushButton_4.clicked.connect(self.startTypageDechetsDechgt)
+        self.typageChgtDict = { 'DEEE' : None, 'Mou' : None, 'Dur' : None, 
+        'BTP' : None, 'Vert' : None, 
+        'VHU' : None, 'BPHU' : None, 'Melange' : None}
+        self.typageDechgtDict = { 'DEEE' : None, 'Mou' : None, 'Dur' : None, 
+        'BTP' : None, 'Vert' : None, 
+        'VHU' : None, 'BPHU' : None, 'Melange' : None}
+        print(self.typageDechgtDict)
+        
+   
+    def isTri(self):
+        """ Teste s'il faut prendre en compte le typage des déchets """
+        # Vérifie si le dictionnaire des volumes de déchets a été rempli
+        for volumeCol in self.typageChgtDict.values(): 
+            if not volumeCol is None and volumeCol != '' :
+                return True
+        return False
+    
     def getDataInput(self):
         """ Renvoie les données entrées en paramètres """
         self.roadLayer = self.roadLayer_CBox.currentLayer()
@@ -1205,8 +1424,8 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         self.idZoneChgtLayer = self.idFieldCBox.currentText()
         self.idZoneDechgtLayer = self.idFieldCBox_2.currentText()
         self.volumeDechets = self.volumeFieldCBox.currentText()
-        self.bassinLayer = self.bassinLayer_CBox.currentLayer()                  
-    
+        self.bassinLayer = self.bassinLayer_CBox.currentLayer()   
+        
     def odMatrix(network_layer, from_point_layer, from_id_field, to_point_layer, to_id_field):
         """
         Calcule la matrice des distances avec QNEAT3.
@@ -1285,7 +1504,40 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
         uniqueschemins = processing.run("native:saveselectedfeatures", {'INPUT': odMatrix, 'OUTPUT': 'memory:'})['OUTPUT']
         uniqueschemins.setCrs(QgsCoordinateReferenceSystem(odMatrix.crs()))
         return uniqueschemins
-
+    
+    def extractSubMatrix(odMatrix, originList = None, destinationList = None):
+        """ 
+        Permet d'extraire d'une sous-matrice à partir d'une liste d'origines 
+        et/ou une liste de destinations.
+        
+        Parameters
+        -----------
+        odMatrix:
+            Matrice des origines distances 
+        
+        originList: Python list
+            liste des origines dont les chemins sont à filtrer
+        destinationList : Python list
+            liste des origines dont les chemins sont à filtrer
+        Returns
+        --------
+        odMatOut: 
+            Sous matrice extraite de odMatrix
+        """
+        odMatOut = odMatrix
+        if not originList is None :
+            list2str = ",".join(str(x) for x in originList)
+            exp = 'array_contains( array('+list2str+'),  "origin_id")'
+            print('Expression pour extraire à partir des origines : {}'.format(exp))
+            odMatOut = processing.run('native:extractbyexpression', {'INPUT': odMatOut, 'EXPRESSION':exp, 'OUTPUT':'memory:'})['OUTPUT']
+        if not destinationList is None :
+            list2str = ",".join(str(x) for x in destinationList)
+            exp = 'array_contains( array('+list2str+'),  "destination_id")'
+            print('Expression pour extraire à partir des destinations : {}'.format(exp))
+            odMatOut = processing.run('native:extractbyexpression', {'INPUT': odMatOut, 'EXPRESSION':exp, 'OUTPUT':'memory:'})['OUTPUT']            
+        return odMatOut
+    
+    
     
     def extractZonesDepotInBassin(zdLayer, bassinLayer):
         """ 
@@ -1328,14 +1580,58 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             from_point_layer = self.zoneChgtLayer, from_id_field = self.idZoneChgtLayer,
             to_point_layer = self.zoneDechgtLayer, to_id_field = self.idZoneDechgtLayer)
             if self.tableCorrespondance is None:
-                # S'il y a plus d'une zone de déchargement 
-                # sélectionne les chemins de coût minimum dans la matrice de distance
-                if  self.zoneDechgtLayer.featureCount() > 1 : 
-                    odMat = PlusCourtChemin.getMinCostFromOdMatrix(odMat)
+                if self.isTri() :
+                    # Ajoute deux nouveaux champs vide à la matrice de distance
+                    # pour indiquer le type de déchets et le volume correspondant 
+                    odMatPrv = odMat.dataProvider()
+                    odMatPrv.addAttributes([QgsField('volume_m3',QVariant.Double),QgsField('type_dechet',QVariant.String)])
+                    odMat.updateFields()               
+                    # Créer une liste qui contient les extraits de matrice OD par type de déchets
+                    odMatExtractList = []
+                    for typeDechet in self.typageChgtDict.keys(): # Parcourt les types de déchets définis
+                        if self.typageChgtDict[typeDechet] is None or self.typageChgtDict[typeDechet] == '':
+                            continue
+                        print("Type déchet : {}".format(typeDechet))
+                        acceptDechetCol = self.typageDechgtDict[typeDechet]
+                        # Sélectionner les destinations qui acceptent le type
+                        exp = acceptDechetCol + ' is true'
+                        print('exp = {}'.format(exp))
+                        paramSelectDest = {'INPUT' : self.zoneDechgtLayer, 'EXPRESSION' : exp, 'METHOD' : 0}
+                        processing.run('qgis:selectbyexpression', paramSelectDest)
+                        # Générer une liste des identifiants des destinations sélectionnées
+                        listDestId = []
+                        for feat in self.zoneDechgtLayer.selectedFeatures():
+                            listDestId.append(feat[self.idZoneDechgtLayer])
+                        odMatExtract = PlusCourtChemin.extractSubMatrix(odMatrix = odMat, destinationList = listDestId)
+                        print('Nombre de chemins extraits : {} '.format(odMatExtract.featureCount()))
+                        odMatExtract = PlusCourtChemin.getMinCostFromOdMatrix(odMatExtract)
+                        print('Nombre de chemins les plus courts extraits : {} '.format(odMatExtract.featureCount()))
+                        # Met à jour les champs type_dechet et volume_m3
+                        odMatExtract.startEditing()
+                        for feat in odMatExtract.getFeatures():
+                            vol = self.getVolumeByType(type_dechet = typeDechet, id_zone_chargement = feat['origin_id'])
+                            print('Volume de déchet de type {} : {} m3'.format(typeDechet, vol))
+                            feat['type_dechet'] = typeDechet
+                            feat['volume_m3'] = vol
+                            odMatExtract.updateFeature(feat)
+                        odMatExtract.commitChanges()
+                        print('Vérification des modifications :')
+                        for f in odMatExtract.getFeatures():
+                            print("Feature:", f.id(), f.attributes())
+                        odMatExtractList.append(odMatExtract)
+                    # Fusionner tous les extraits de matrice OD
+                    merge_param = {'LAYERS': odMatExtractList,  'CRS': self.zoneChgtLayer.crs(), 'OUTPUT': 'memory:'}
+                    odMat = processing.run("qgis:mergevectorlayers", merge_param)['OUTPUT']  
+                    return odMat
+                else :
+                    # sélectionne les chemins de coût minimum dans la matrice de distance
+                    if  self.zoneDechgtLayer.featureCount() > 1 : 
+                        odMat = PlusCourtChemin.getMinCostFromOdMatrix(odMat)
             else: # Avec table de correspondance : TODO
                 # Sélectionne uniquement les chemins dont les ID origine / destination 
                 # sont spécifiés dans la table de correspondance
                 pass
+            
         else : # Plusieurs bassins de collecte
             odMatList = []
             for bassin in self.bassinLayer.getFeatures():
@@ -1377,6 +1673,244 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             'INPUT_2': self.zoneChgtLayer, 'FIELD_2' : self.idZoneChgtLayer, 'FIELDS_TO_COPY' : self.volumeDechets,
             'METHOD' : 1, 'OUTPUT' : 'memory:'}
         cheminsOutput = processing.run('native:joinattributestable', paramJoin)['OUTPUT']
-        cheminsOutput.setName('Chemins')
+        cheminsOutput.setName(str(self.circuit) + ' - Chemins')
         # Renvoie le résultat
         return cheminsOutput
+        
+        
+    def startTypageDechetsChgt(self):
+        """ 
+        
+        Ouvre la boîte de dialogue et met à jour les colonnes 
+        correspondant à chaque volume de déchets sur les zones de chargement
+        
+        """
+        dialog = TypageDechetsChargement(self.typageChgtDict)
+        dialog.zoneChgtLayer_CBox.setLayer(self.zonechgtLayerInput.currentLayer())
+        dialog.display()
+        result = dialog.exec_()
+        if result:
+            dialog.getDataInput()
+            self.typageChgtDict = dialog.typage_dechets
+            print("Typage entré : {}".format(self.typageChgtDict))
+            
+    def startTypageDechetsDechgt(self):
+        """ 
+        
+        Ouvre la boîte de dialogue et met à jour les colonnes 
+        correspondant à chaque volume de déchets sur les zones de déchargement.
+        
+        """
+        
+        dialog = TypageDechetsDechargement(self.typageDechgtDict)
+        dialog.zoneDepotLayer_CBox.setLayer(self.zoneDechgtLayerInput.currentLayer())
+        dialog.display()
+        result = dialog.exec_()
+        if result:
+            dialog.getDataInput()
+            self.typageDechgtDict = dialog.typage_dechets
+            print("Typage entré : {}".format(self.typageDechgtDict))
+    
+    def getVolumeByType(self, type_dechet, id_zone_chargement):
+        """
+        
+        Permet de récupérer le volume de déchet d'une zone de chargement
+        et selon un type de déchet spécifié
+        
+        """
+        # Colonne de volume de déchets correspondant au type de déchet
+        volumeCol = self.typageChgtDict[type_dechet]
+        # Recherche
+        volumeOutput = None
+        for feat in self.zoneChgtLayer.getFeatures():
+            if feat[self.idZoneChgtLayer] == id_zone_chargement:
+                volumeOutput = feat[volumeCol]
+                break
+        
+        return volumeOutput
+        
+
+# UI typage des déchets sur les zones de chargement
+FORM_CLASS_TYPAGE_CHARGEMENT, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'dialog_typage_dechets.ui'))
+class TypageDechetsChargement(QtWidgets.QDialog, FORM_CLASS_TYPAGE_CHARGEMENT):
+    def __init__(self, typage_dechets_chgt, parent=None):
+        """Constructor."""
+        super(TypageDechetsChargement, self).__init__(parent)
+        self.setupUi(self)  
+        self.zoneChgtLayer_CBox.setLayer(None)
+        # Data
+        self.typage_dechets = typage_dechets_chgt
+        
+    def display(self):
+        """ 
+        Affiche les données éventuellement pré-enregistrées par l'utilisateur
+        (dans le cas où il aurait renseigné une première fois le typage des déchets)
+        
+        """
+        if self.typage_dechets['DEEE'] is None :
+            self.d3e_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.d3e_FieldCBox.setCurrentText(self.typage_dechets['DEEE'])
+        if self.typage_dechets['Mou'] is None :
+            self.dmou_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dmou_FieldCBox.setCurrentText(self.typage_dechets['Mou'])
+        if self.typage_dechets['Dur'] is None :
+            self.ddur_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.ddur_FieldCBox.setCurrentText(self.typage_dechets['Dur'])
+        if self.typage_dechets['BTP'] is None :
+            self.dbtp_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dbtp_FieldCBox.setCurrentText(self.typage_dechets['BTP'])
+        if self.typage_dechets['Vert'] is None :
+            self.dvert_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dvert_FieldCBox.setCurrentText(self.typage_dechets['Vert'])
+        if self.typage_dechets['VHU'] is None :
+            self.vhu_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.vhu_FieldCBox.setCurrentText(self.typage_dechets['VHU'])
+        if self.typage_dechets['BPHU'] is None :
+            self.bphu_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.bphu_FieldCBox.setCurrentText(self.typage_dechets['BPHU'])
+        if self.typage_dechets['Melange'] is None :
+            self.dmelange_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dmelange_FieldCBox.setCurrentText(self.typage_dechets['Melange'])
+            
+    def getDataInput(self):
+        if self.d3e_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['DEEE'] = self.d3e_FieldCBox.currentText()
+        else :
+            self.typage_dechets['DEEE'] =  None
+        if self.dmou_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Mou'] = self.dmou_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Mou'] =  None
+        if self.ddur_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Dur'] = self.ddur_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Dur'] =  None
+        if self.dbtp_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['BTP'] = self.dbtp_FieldCBox.currentText()
+        else :
+            self.typage_dechets['BTP'] =  None
+        if self.dvert_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Vert'] = self.dvert_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Vert'] =  None
+        if self.vhu_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['VHU'] = self.vhu_FieldCBox.currentText()
+        else :
+            self.typage_dechets['VHU'] =  None
+        if self.bphu_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['BPHU'] = self.bphu_FieldCBox.currentText()
+        else :
+            self.typage_dechets['BPHU'] =  None
+        if self.dmelange_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Melange'] = self.dmelange_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Melange'] =  None
+                        
+# UI typage des déchets sur les zones de chargement
+FORM_CLASS_TYPAGE_DECHARGEMENT, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'dialog_typage_dechets_dechgt.ui'))
+class TypageDechetsDechargement(QtWidgets.QDialog, FORM_CLASS_TYPAGE_DECHARGEMENT):
+    def __init__(self, typage_dechets_dechgt, parent=None):
+        """Constructor."""
+        super(TypageDechetsDechargement, self).__init__(parent)
+        self.setupUi(self)
+        self.zoneDepotLayer_CBox.setLayer(None)
+        # Data
+        self.typage_dechets = typage_dechets_dechgt
+        
+    def display(self):
+        """ 
+        Affiche les données éventuellement pré-enregistrées par l'utilisateur
+        (dans le cas où il aurait renseigné une première fois le typage des déchets)
+        
+        """
+        if self.typage_dechets['DEEE'] is None :
+            self.d3e_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.d3e_FieldCBox.setCurrentText(self.typage_dechets['DEEE'])
+        if self.typage_dechets['Mou'] is None :
+            self.dmou_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dmou_FieldCBox.setCurrentText(self.typage_dechets['Mou'])
+        if self.typage_dechets['Dur'] is None :
+            self.ddur_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.ddur_FieldCBox.setCurrentText(self.typage_dechets['Dur'])
+        if self.typage_dechets['BTP'] is None :
+            self.dbtp_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dbtp_FieldCBox.setCurrentText(self.typage_dechets['BTP'])
+        if self.typage_dechets['Vert'] is None :
+            self.dvert_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dvert_FieldCBox.setCurrentText(self.typage_dechets['Vert'])
+        if self.typage_dechets['VHU'] is None :
+            self.vhu_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.vhu_FieldCBox.setCurrentText(self.typage_dechets['VHU'])
+        if self.typage_dechets['BPHU'] is None :
+            self.bphu_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.bphu_FieldCBox.setCurrentText(self.typage_dechets['BPHU'])
+        if self.typage_dechets['Melange'] is None :
+            self.dmelange_FieldCBox.setCurrentIndex(-1)
+        else :
+            self.dmelange_FieldCBox.setCurrentText(self.typage_dechets['Melange'])
+            
+    def getDataInput(self):
+        if self.d3e_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['DEEE'] = self.d3e_FieldCBox.currentText()
+        else :
+            self.typage_dechets['DEEE'] =  None
+        if self.dmou_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Mou'] = self.dmou_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Mou'] =  None
+        if self.ddur_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Dur'] = self.ddur_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Dur'] =  None
+        if self.dbtp_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['BTP'] = self.dbtp_FieldCBox.currentText()
+        else :
+            self.typage_dechets['BTP'] =  None
+        if self.dvert_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Vert'] = self.dvert_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Vert'] =  None
+        if self.vhu_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['VHU'] = self.vhu_FieldCBox.currentText()
+        else :
+            self.typage_dechets['VHU'] =  None
+        if self.bphu_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['BPHU'] = self.bphu_FieldCBox.currentText()
+        else :
+            self.typage_dechets['BPHU'] =  None
+        if self.dmelange_FieldCBox.currentIndex() != -1 :
+            self.typage_dechets['Melange'] = self.dmelange_FieldCBox.currentText()
+        else :
+            self.typage_dechets['Melange'] =  None
+
+from qgis.gui import QgsFileWidget   
+FORM_CLASS_EXPORT_RESULT, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'export_result_simu.ui'))
+class ExportResultDialog(QtWidgets.QDialog, FORM_CLASS_EXPORT_RESULT):
+    def __init__(self, parent=None):
+        """ Constructor. """
+        super(ExportResultDialog, self).__init__(parent)
+        self.setupUi(self)
+        self.mQgsFileWidget.setStorageMode(QgsFileWidget.SaveFile) # Mode sauvegarde des données
+        self.mQgsFileWidget.setFilter('Geopackage (*.gpkg, *.GPKG)')  # Uniquement sous forme de fichier geopackage 
+        
+    def getFilePath(self):
+        #print(self.mQgsFileWidget.filePath())
+        return self.mQgsFileWidget.filePath()
