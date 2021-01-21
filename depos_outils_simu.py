@@ -478,7 +478,7 @@ class SimuDePOs:
         # Ajoute un nouveau champ : durée de vidage de la zone
         # Durée totale vidage = somme des durées de vidage de chaque type de déchets
         zoneChgtOuputPrv = zoneChgtOuput.dataProvider()
-        zoneChgtOuputPrv.addAttributes([QgsField('duree_h',QVariant.Double)])
+        zoneChgtOuputPrv.addAttributes([QgsField('duree_h',QVariant.Double,'double', 20,6)])
         zoneChgtOuput.updateFields()
         zoneChgtOuput.startEditing()
         for feat in zoneChgtOuput.getFeatures():
@@ -522,7 +522,7 @@ class SimuDePOs:
         
         # Ajoute un champ "durée de collecte" et un champs "volume total de déchets"
         zoneDechgtOuputPrv = zoneDechgtOuput.dataProvider()
-        zoneDechgtOuputPrv.addAttributes([QgsField('duree_h',QVariant.Double),QgsField('vol_dechet_m3',QVariant.Double)])
+        zoneDechgtOuputPrv.addAttributes([QgsField('duree_h',QVariant.Double,'double', 20, 6),QgsField('vol_dechet_m3',QVariant.Double,'double', 20, 6)])
         zoneDechgtOuput.updateFields()
         zoneDechgtOuput.startEditing()
         for feat in zoneDechgtOuput.getFeatures():                
@@ -573,12 +573,12 @@ class SimuDePOs:
             self.paramInput['bassinLayer'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
             # Ajoute les colonnes de durées et les caractéristiques de l'acteur
             bassinOutputPrv = bassinOutput.dataProvider()
-            bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
-                                            QgsField('duree_jour',QVariant.Double),
+            bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double,'double', 20,6), 
+                                            QgsField('duree_jour',QVariant.Double,'double', 20,6),
                                             #QgsField('duree_semaine',QVariant.Double), 
                                             #QgsField('duree_mois',QVariant.Double),
-                                            QgsField('n_vehicules',QVariant.Int),
-                                            QgsField('capacite_max_m3',QVariant.Double)])
+                                            QgsField('n_vehicules',QVariant.Int,'int',20),
+                                            QgsField('capacite_max_m3',QVariant.Double, 'double',20,6)])
             bassinOutput.updateFields()
             bassinOutput.startEditing()
             for feat in bassinOutput.getFeatures():  # Parcourt les bassins
@@ -614,12 +614,12 @@ class SimuDePOs:
             bassinOutput = processing.run('qgis:minimumboundinggeometry', param_emprise)['OUTPUT']
             # Ajoute les colonnes de durées et les caractéristiques de l'acteur
             bassinOutputPrv = bassinOutput.dataProvider()
-            bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
-                                            QgsField('duree_jour',QVariant.Double),
+            bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double,'double', 20,6), 
+                                            QgsField('duree_jour',QVariant.Double,'double',20,6),
                                             #QgsField('duree_semaine',QVariant.Double), 
                                             #QgsField('duree_mois',QVariant.Double),
-                                            QgsField('n_vehicules',QVariant.Int),
-                                            QgsField('capacite_max_m3',QVariant.Double)])
+                                            QgsField('n_vehicules',QVariant.Int, 'int', 20),
+                                            QgsField('capacite_max_m3',QVariant.Double, 'double', 20,6)])
             bassinOutput.updateFields()
             bassinOutput.startEditing()
             for feat in bassinOutput.getFeatures(): # Normalement il n'y a qu'un seul élément dans la liste
