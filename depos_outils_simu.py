@@ -29,7 +29,7 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox, QTableWidgetItem
 from .resources import *
 # Import the code for the dialog
 from .depos_outils_simu_dialog import DePosMainWindow
-from .simu_damage2.simu_damage2_dialog import SimuDamageMainWindow
+from simu_damage2.simu_damage2_dialog import SimuDamageMainWindow
 
 import os.path
 
@@ -241,8 +241,8 @@ class SimuDePOs:
         self.dlg.pushButtonCalculCheminVersExutoire.clicked.connect(self.startPlusCourtChemin2)
         # Menu Gisements de Déchets
         self.dlg.actionLocalisation_des_sources_de_d_chets_post_ouragans.triggered.connect(self.startLocateGisements)
-       
-    
+        
+        
     def runCollecte(self):
         """ Run waste collection simulation """
         self.paramInput = self.dlg.getInput() 
@@ -324,7 +324,7 @@ class SimuDePOs:
             dureesZones.append(list(d.values()))
         self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones)
             
-        output = self.outputLayerCircuit1() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
+        output = self.outputLayerCircuit() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
         for out in output :            
             QgsProject.instance().addMapLayer(out)
             self.outputLayers.append(out)
@@ -359,11 +359,12 @@ class SimuDePOs:
         for d in self.dureesCollecteZST:
             dureesZones.append(list(d.values()))
         self.dlg.displayVisu(resultSimu = dureesZones, header = headerDureesZones, circuit = 2)
-        '''    
-        output = self.outputLayerCircuit2() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
+        
+        output = self.outputLayerCircuit() # Couches de sortie : zones de chargement, de déchargement avec les durées et les volumes
         for out in output :            
             QgsProject.instance().addMapLayer(out)
-        '''
+            self.outputLayers.append(out)
+        
 
     def collectDuration(self):
         """ 
@@ -427,8 +428,6 @@ class SimuDePOs:
                 'capacite_max_m3': capacité d'un véhicule
                 'duree_h' : durée en heures
                 'duree_jour': durée en jours
-                'duree_semaine': durée en semaine
-                'duree_mois' : durée en mois
         """
         dureesCollecte = [] # Liste des durées de vidage des zones de chargement
         dureesVidageZoneDepot = [] # Indicateur de durée totale de la collecte
@@ -451,7 +450,7 @@ class SimuDePOs:
         print('Durées de collectes par zone de chgt : {} \n Durée totale de collecte : {}'.format(dureesCollecte, dureeTotale) )
         return dureesCollecte, dureeTotale #dureesParBassin
     
-    def outputLayerCircuit1(self):
+    def outputLayerCircuit(self):
         """
         Génère des couches de données en fin de simulation.
         
@@ -464,25 +463,43 @@ class SimuDePOs:
             # Duplique la couche des AD en entrée : 
             # Sélectionne toutes les entités et les exporte dans une nouvelle couche
             self.paramInput['zdLayer1'].selectAll()
-            adOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer1'], 'OUTPUT': 'memory:'})['OUTPUT']
-            adOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer1'].crs()))
+            zoneChgtOuput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer1'], 'OUTPUT': 'memory:'})['OUTPUT']
+            zoneChgtOuput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer1'].crs()))
             self.paramInput['zdLayer1'].removeSelection() # Dé-sélectionne toutes les entités sélectionnées de la couche
+            zoneChgtOuput.setName('1 - output_zones_chargement')
             
-            # Ajoute un nouveau champ
-            adOutputPrv = adOutput.dataProvider()
-            adOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double)])
-            adOutput.updateFields()
-            adOutput.startEditing()
-            for feat in adOutput.getFeatures():
-                idAD = feat[self.idZoneChgtLayer]
+        elif self.paramInput['simuCircuit2']:# Duplique la couche des ZST
+            self.paramInput['zdLayer2'].selectAll()
+            zoneChgtOuput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
+            zoneChgtOuput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
+            self.paramInput['zdLayer2'].removeSelection() # Dé-sélectionne toutes les entités sélectionnées de la couche
+            zoneChgtOuput.setName('2 - output_zones_chargement')
+        
+        # Ajoute un nouveau champ : durée de vidage de la zone
+        # Durée totale vidage = somme des durées de vidage de chaque type de déchets
+        zoneChgtOuputPrv = zoneChgtOuput.dataProvider()
+        zoneChgtOuputPrv.addAttributes([QgsField('duree_h',QVariant.Double)])
+        zoneChgtOuput.updateFields()
+        zoneChgtOuput.startEditing()
+        for feat in zoneChgtOuput.getFeatures():
+            idChgtZone = feat[self.idZoneChgtLayer]
+            dureeTotaleVidageZoneDepot = 0
+            if self.paramInput['simuCircuit1']:
                 for resultat in self.dureesCollecte:
-                    if resultat['id_chgt'] == idAD:
-                        feat['duree_h'] = resultat['duree_h']
-                        adOutput.updateFeature(feat)
-                        break
-            adOutput.commitChanges()
-            adOutput.setName('1 - output_zones_chargement')
-            
+                    if resultat['id_chgt'] == idChgtZone:
+                        dureeTotaleVidageZoneDepot = dureeTotaleVidageZoneDepot + resultat['duree_h']
+                feat['duree_h'] = dureeTotaleVidageZoneDepot
+                zoneChgtOuput.updateFeature(feat)
+            elif self.paramInput['simuCircuit2']:
+                for resultat in self.dureesCollecteZST:
+                    if resultat['id_chgt'] == idChgtZone:
+                        dureeTotaleVidageZoneDepot = dureeTotaleVidageZoneDepot + resultat['duree_h']
+                feat['duree_h'] = dureeTotaleVidageZoneDepot
+                zoneChgtOuput.updateFeature(feat)
+                        
+        zoneChgtOuput.commitChanges()
+        
+        if self.paramInput['simuCircuit1']:    
             """
             Reprend la couche des ZST en y ajoutant plusieurs colonnes pour indiquer:
             - la durée pour collecter toutes les AD (en heures) : correspond à la durée max de vidage d'une AD
@@ -492,66 +509,81 @@ class SimuDePOs:
             # Duplique la couche des ZST en entrée : 
             # Sélectionne toutes les entités et les exporte dans une nouvelle couche
             self.paramInput['zdLayer2'].selectAll()
-            zstOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
-            zstOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
+            zoneDechgtOuput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer2'], 'OUTPUT': 'memory:'})['OUTPUT']
+            zoneDechgtOuput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer2'].crs()))
             self.paramInput['zdLayer2'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
-            
-            # Ajoute un champ "durée de collecte" et un champs "volume total de déchets"
-            zstOutputPrv = zstOutput.dataProvider()
-            zstOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double),QgsField('vol_dechet_m3',QVariant.Double)])
-            zstOutput.updateFields()
-            zstOutput.startEditing()
-            for feat in zstOutput.getFeatures():                
-                volTotal = 0
-                dureeMax = 0
-                idZST = feat[self.idZoneDechgtLayer]
+        elif self.paramInput['simuCircuit2']: # Duplique la couche des exutoires
+            # Duplique la couche des ZST en entrée : 
+            # Sélectionne toutes les entités et les exporte dans une nouvelle couche
+            self.paramInput['zdLayer3'].selectAll()
+            zoneDechgtOuput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['zdLayer3'], 'OUTPUT': 'memory:'})['OUTPUT']
+            zoneDechgtOuput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['zdLayer3'].crs()))
+            self.paramInput['zdLayer3'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
+        
+        # Ajoute un champ "durée de collecte" et un champs "volume total de déchets"
+        zoneDechgtOuputPrv = zoneDechgtOuput.dataProvider()
+        zoneDechgtOuputPrv.addAttributes([QgsField('duree_h',QVariant.Double),QgsField('vol_dechet_m3',QVariant.Double)])
+        zoneDechgtOuput.updateFields()
+        zoneDechgtOuput.startEditing()
+        for feat in zoneDechgtOuput.getFeatures():                
+            volTotal = 0
+            dureeMax = 0
+            idZoneDechgt = feat[self.idZoneDechgtLayer]
+            if self.paramInput['simuCircuit1']:
                 for resultat in self.dureesCollecte:     
-                    if resultat['id_dechgt'] == idZST:
+                    if resultat['id_dechgt'] == idZoneDechgt:
                         volTotal = volTotal + resultat['volume_m3']
                         if resultat['duree_h'] > dureeMax :
                             dureeMax = resultat['duree_h']
-                feat['duree_h'] = dureeMax
-                feat['vol_dechet_m3'] = volTotal
-                zstOutput.updateFeature(feat)   
-            zstOutput.commitChanges()
+            if self.paramInput['simuCircuit2']:
+                for resultat in self.dureesCollecteZST:     
+                    if resultat['id_dechgt'] == idZoneDechgt:
+                        volTotal = volTotal + resultat['volume_m3']
+                        if resultat['duree_h'] > dureeMax :
+                            dureeMax = resultat['duree_h']
+            feat['duree_h'] = dureeMax
+            feat['vol_dechet_m3'] = volTotal
+            zoneDechgtOuput.updateFeature(feat)   
+        zoneDechgtOuput.commitChanges()
             
-            # Extrait uniquement les zones de dépôt qui ont reçu des déchets
-            param_extract = {'INPUT' : zstOutput,
-            'EXPRESSION' : 'vol_dechet_m3 <>0',
-            'OUTPUT': 'memory:'}
-            zstExtractOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
-            zstExtractOutput.setName('1 - output_zones_dechargement')
+        # Extrait uniquement les zones de dépôt qui ont reçu des déchets
+        param_extract = {'INPUT' : zoneDechgtOuput,
+        'EXPRESSION' : 'vol_dechet_m3 <>0',
+        'OUTPUT': 'memory:'}
+        zoneDechgExtracttOuput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']
+        zoneDechgExtracttOuput.setName('1 - output_zones_dechargement')
             
-            """ 
-            Couche portant la durée de collecte sur la zone :
-            Cas de la collecte par bassin : 
-                - Reprend la couche d'entrée des bassins de collecte
-                - Ajoute les colonnes des durées (en h, semaines, mois), le nombre de véhicules et la capacité max moyenne
-                - Met à jour ces attributs selon chaque bassin
-            Cas de la collecte sans partitionnement du territoire: 
-                - Calculer l'emprise minimale des points de la couche des zones de chargement
-                - Ajouter la colonne des durées (en h, semaines, mois), le nombre de véhicules et la capacité max moyenne
-                - Met à jour ces attributs            
+        """ 
+        Couche portant la durée de collecte sur la zone :
+        Cas de la collecte par bassin : 
+            - Reprend la couche d'entrée des bassins de collecte
+            - Ajoute les colonnes des durées (en h, semaines, mois), le nombre de véhicules et la capacité max moyenne
+            - Met à jour ces attributs selon chaque bassin
+        Cas de la collecte sans partitionnement du territoire: 
+            - Calculer l'emprise minimale des points de la couche des zones de chargement
+            - Ajouter la colonne des durées (en h, semaines, mois), le nombre de véhicules et la capacité max moyenne
+            - Met à jour ces attributs            
             
-            """
-            if self.paramInput["isCollecteParBassin"]:
-                # Duplique la couche des bassins de collecte
-                self.paramInput['bassinLayer'].selectAll()
-                bassinOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['bassinLayer'], 'OUTPUT': 'memory:'})['OUTPUT']
-                bassinOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['bassinLayer'].crs()))
-                self.paramInput['bassinLayer'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
-                # Ajoute les colonnes de durées et les caractéristiques de l'acteur
-                bassinOutputPrv = bassinOutput.dataProvider()
-                bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
-                                                QgsField('duree_jour',QVariant.Double),
-                                                #QgsField('duree_semaine',QVariant.Double), 
-                                                #QgsField('duree_mois',QVariant.Double),
-                                                QgsField('n_vehicules',QVariant.Int),
-                                                QgsField('capacite_max_m3',QVariant.Double)])
-                bassinOutput.updateFields()
-                bassinOutput.startEditing()
-                for feat in bassinOutput.getFeatures():  # Parcourt les bassins
-                    for info in self.dureeTotaleCollecte :# Parcourt les durées par bassin
+        """
+        if self.paramInput["isCollecteParBassin"]:
+            # Duplique la couche des bassins de collecte
+            self.paramInput['bassinLayer'].selectAll()
+            bassinOutput = processing.run("native:saveselectedfeatures", {'INPUT': self.paramInput['bassinLayer'], 'OUTPUT': 'memory:'})['OUTPUT']
+            bassinOutput.setCrs(QgsCoordinateReferenceSystem(self.paramInput['bassinLayer'].crs()))
+            self.paramInput['bassinLayer'].removeSelection() #self.unselectAll() # Dé-sélectionne toutes les entités
+            # Ajoute les colonnes de durées et les caractéristiques de l'acteur
+            bassinOutputPrv = bassinOutput.dataProvider()
+            bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
+                                            QgsField('duree_jour',QVariant.Double),
+                                            #QgsField('duree_semaine',QVariant.Double), 
+                                            #QgsField('duree_mois',QVariant.Double),
+                                            QgsField('n_vehicules',QVariant.Int),
+                                            QgsField('capacite_max_m3',QVariant.Double)])
+            bassinOutput.updateFields()
+            bassinOutput.startEditing()
+            for feat in bassinOutput.getFeatures():  # Parcourt les bassins
+                for info in self.dureeTotaleCollecte :# Parcourt les durées par bassin
+                    if self.paramInput['simuCircuit1']:    
                         if feat[self.paramInput['idBassin']] == info['idBassin']:
                             feat['duree_h'] = info['duree_h']
                             feat['duree_jour'] = info['duree_jour']
@@ -561,37 +593,54 @@ class SimuDePOs:
                             feat['capacite_max_m3'] = info['capacite_max_m3']
                             bassinOutput.updateFeature(feat)   
                             break
-                bassinOutput.commitChanges()
-                # Extrait uniquement les bassins qui ont été collectés
-                param_extract = {'INPUT' : bassinOutput, 'EXPRESSION' : 'duree_h IS NOT NULL', 'OUTPUT': 'memory:'}
-                bassinOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']                
-            else : 
-                # Calcule l'enveloppe convexe des zones de chargement
-                param_emprise = {'INPUT' : adOutput, 'TYPE': 3, 'OUTPUT': 'memory:'}
-                bassinOutput = processing.run('qgis:minimumboundinggeometry', param_emprise)['OUTPUT']
-                # Ajoute les colonnes de durées et les caractéristiques de l'acteur
-                bassinOutputPrv = bassinOutput.dataProvider()
-                bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
-                                                QgsField('duree_jour',QVariant.Double),
-                                                #QgsField('duree_semaine',QVariant.Double), 
-                                                #QgsField('duree_mois',QVariant.Double),
-                                                QgsField('n_vehicules',QVariant.Int),
-                                                QgsField('capacite_max_m3',QVariant.Double)])
-                bassinOutput.updateFields()
-                bassinOutput.startEditing()
-                for feat in bassinOutput.getFeatures(): # Normalement il n'y a qu'un seul élément dans la liste
+                    elif self.paramInput['simuCircuit2']:
+                        for info in self.dureeTotaleCollecteVersExutoire :# Parcourt les durées par bassin
+                            if feat[self.paramInput['idBassin']] == info['idBassin']:
+                                feat['duree_h'] = info['duree_h']
+                                feat['duree_jour'] = info['duree_jour']
+                                #feat['duree_semaine'] = info['duree_semaine']
+                                #feat['duree_mois'] = info['duree_mois']
+                                feat['n_vehicules'] = info['n_vehicules']
+                                feat['capacite_max_m3'] = info['capacite_max_m3']
+                                bassinOutput.updateFeature(feat)   
+                                break
+            bassinOutput.commitChanges()
+            # Extrait uniquement les bassins qui ont été collectés
+            param_extract = {'INPUT' : bassinOutput, 'EXPRESSION' : 'duree_h IS NOT NULL', 'OUTPUT': 'memory:'}
+            bassinOutput = processing.run('native:extractbyexpression',param_extract)['OUTPUT']                
+        else : 
+            # Calcule l'enveloppe convexe des zones de chargement
+            param_emprise = {'INPUT' : zoneChgtOuput, 'TYPE': 3, 'OUTPUT': 'memory:'}
+            bassinOutput = processing.run('qgis:minimumboundinggeometry', param_emprise)['OUTPUT']
+            # Ajoute les colonnes de durées et les caractéristiques de l'acteur
+            bassinOutputPrv = bassinOutput.dataProvider()
+            bassinOutputPrv.addAttributes([QgsField('duree_h',QVariant.Double), 
+                                            QgsField('duree_jour',QVariant.Double),
+                                            #QgsField('duree_semaine',QVariant.Double), 
+                                            #QgsField('duree_mois',QVariant.Double),
+                                            QgsField('n_vehicules',QVariant.Int),
+                                            QgsField('capacite_max_m3',QVariant.Double)])
+            bassinOutput.updateFields()
+            bassinOutput.startEditing()
+            for feat in bassinOutput.getFeatures(): # Normalement il n'y a qu'un seul élément dans la liste
+                if self.paramInput['simuCircuit1']:
                     info = self.dureeTotaleCollecte[0]
-                    feat['duree_h'] = info['duree_h']
-                    feat['duree_jour'] = info['duree_jour']
-                    #feat['duree_semaine'] = info['duree_semaine']
-                    #feat['duree_mois'] = info['duree_mois']
-                    feat['n_vehicules'] = info['n_vehicules']
-                    feat['capacite_max_m3'] = info['capacite_max_m3']  
-                    bassinOutput.updateFeature(feat)         
-                bassinOutput.commitChanges()
+                elif self.paramInput['simuCircuit2']:
+                    info = self.dureeTotaleCollecteVersExutoire[0]
+                feat['duree_h'] = info['duree_h']
+                feat['duree_jour'] = info['duree_jour']
+                #feat['duree_semaine'] = info['duree_semaine']
+                #feat['duree_mois'] = info['duree_mois']
+                feat['n_vehicules'] = info['n_vehicules']
+                feat['capacite_max_m3'] = info['capacite_max_m3']  
+                bassinOutput.updateFeature(feat)         
+            bassinOutput.commitChanges()
+        if self.paramInput['simuCircuit1']: 
             bassinOutput.setName('1 - output_durees_par_zones')
-            return [bassinOutput, adOutput, zstExtractOutput]
-            
+        elif self.paramInput['simuCircuit2']:
+            bassinOutput.setName('2 - output_durees_par_zones')
+        return [bassinOutput, zoneChgtOuput, zoneDechgExtracttOuput]
+        
     
     def runSimuDamage(self):
         """ Run damage simulation window """
@@ -686,7 +735,7 @@ class SimuDePOs:
                             typeDechet = self.routingInfo['typageField'],
                             circuit = 2)
             QMessageBox.information(None, "Fin de calcul", "Données chargées !")    
-            self.outputLayers.append(self.routingInfo['cheminLayer'])            
+            self.outputLayers.append(self.routingInfo['cheminLayer'])           
     
     def loadChemins(self, cheminLayer, originIdField, destinationIdField, distanceField, volumeField, typeDechet=None, distanceUnit = 'm', circuit = 1):
         """ Charge les chemins entre les zones de dépôt
@@ -734,13 +783,14 @@ class SimuDePOs:
             print("Trajectoires vers ZST :\n {}".format(self.traj2ZST))
         elif circuit == 2 :
             print("Trajectoires vers exutoires :\n {}".format(self.traj2Exutoire))
+        self.dlg.progressBar.setValue(100)
 
     def startPlusCourtChemin1(self):
         """ Ouvre la boîte de dialogue pour configurer le calcul des plus courts chemins vers les ZST """
         
         self.paramInput = self.dlg.getInput()       
         dialog = PlusCourtChemin(isCollecteParBassin = self.paramInput['isCollecteParBassin'], 
-        bassinLayer = self.paramInput['bassinLayer'], idBassin = self.paramInput['idBassin'])
+        bassinLayer = self.paramInput['bassinLayer'], idBassin = self.paramInput['idBassin'], isTri = self.paramInput['isTri'])
         dialog.zonechgtLayerInput.setLayer(self.dlg.suivi_couche_ad.currentLayer())
         dialog.zoneDechgtLayerInput.setLayer(self.dlg.suivi_couche_zst.currentLayer())
         result = dialog.exec_()
@@ -1389,12 +1439,16 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
             self.frameBassin.setHidden(True)
             self.bassinLayer_CBox.setLayer(None)
         self.tableCorrespondance = None
-        '''
+        
         if isTri :
             self.optionTri.setHidden(False)
+            self.optionTri2.setHidden(False)
+            self.frame.setHidden(True)
         else :
             self.optionTri.setHidden(True)
-        '''
+            self.optionTri2.setHidden(True)
+            self.frame.setHidden(False)
+        
         self.circuit = circuit 
                 
         self.pushButton_3.clicked.connect(self.startTypageDechetsChgt)
@@ -1606,6 +1660,7 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
                         print('Nombre de chemins extraits : {} '.format(odMatExtract.featureCount()))
                         odMatExtract = PlusCourtChemin.getMinCostFromOdMatrix(odMatExtract)
                         print('Nombre de chemins les plus courts extraits : {} '.format(odMatExtract.featureCount()))
+                        self.zoneDechgtLayer.removeSelection() # Dé-selectionne tous les éléments sélectionnés
                         # Met à jour les champs type_dechet et volume_m3
                         odMatExtract.startEditing()
                         for feat in odMatExtract.getFeatures():
@@ -1621,7 +1676,8 @@ class PlusCourtChemin(QtWidgets.QDialog, FORM_CLASS_CALCUL_CHEMIN):
                         odMatExtractList.append(odMatExtract)
                     # Fusionner tous les extraits de matrice OD
                     merge_param = {'LAYERS': odMatExtractList,  'CRS': self.zoneChgtLayer.crs(), 'OUTPUT': 'memory:'}
-                    odMat = processing.run("qgis:mergevectorlayers", merge_param)['OUTPUT']  
+                    odMat = processing.run("qgis:mergevectorlayers", merge_param)['OUTPUT']
+                    odMat.setName(str(self.circuit) + ' - Chemins')
                     return odMat
                 else :
                     # sélectionne les chemins de coût minimum dans la matrice de distance
