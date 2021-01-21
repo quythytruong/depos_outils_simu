@@ -29,7 +29,7 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox, QTableWidgetItem
 from .resources import *
 # Import the code for the dialog
 from .depos_outils_simu_dialog import DePosMainWindow
-from simu_damage2.simu_damage2_dialog import SimuDamageMainWindow
+from .simu_damage2.simu_damage2_dialog import SimuDamageMainWindow
 
 import os.path
 
