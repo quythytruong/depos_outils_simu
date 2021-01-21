@@ -489,16 +489,17 @@ class SimuDePOs:
                     if resultat['id_chgt'] == idChgtZone:
                         dureeTotaleVidageZoneDepot = dureeTotaleVidageZoneDepot + resultat['duree_h']
                 feat['duree_h'] = dureeTotaleVidageZoneDepot
-                zoneChgtOuput.updateFeature(feat)
+                #zoneChgtOuput.updateFeature(feat)
             elif self.paramInput['simuCircuit2']:
                 for resultat in self.dureesCollecteZST:
                     if resultat['id_chgt'] == idChgtZone:
                         dureeTotaleVidageZoneDepot = dureeTotaleVidageZoneDepot + resultat['duree_h']
                 feat['duree_h'] = dureeTotaleVidageZoneDepot
-                zoneChgtOuput.updateFeature(feat)
-                        
+                #zoneChgtOuput.updateFeature(feat)
+            zoneChgtOuput.updateFeature(feat)                
         zoneChgtOuput.commitChanges()
         
+               
         if self.paramInput['simuCircuit1']:    
             """
             Reprend la couche des ZST en y ajoutant plusieurs colonnes pour indiquer:
@@ -591,7 +592,7 @@ class SimuDePOs:
                             #feat['duree_mois'] = info['duree_mois']
                             feat['n_vehicules'] = info['n_vehicules']
                             feat['capacite_max_m3'] = info['capacite_max_m3']
-                            bassinOutput.updateFeature(feat)   
+                            #bassinOutput.updateFeature(feat)   
                             break
                     elif self.paramInput['simuCircuit2']:
                         for info in self.dureeTotaleCollecteVersExutoire :# Parcourt les durées par bassin
@@ -602,8 +603,9 @@ class SimuDePOs:
                                 #feat['duree_mois'] = info['duree_mois']
                                 feat['n_vehicules'] = info['n_vehicules']
                                 feat['capacite_max_m3'] = info['capacite_max_m3']
-                                bassinOutput.updateFeature(feat)   
+                                #bassinOutput.updateFeature(feat)   
                                 break
+                bassinOutput.updateFeature(feat) 
             bassinOutput.commitChanges()
             # Extrait uniquement les bassins qui ont été collectés
             param_extract = {'INPUT' : bassinOutput, 'EXPRESSION' : 'duree_h IS NOT NULL', 'OUTPUT': 'memory:'}
