@@ -1,0 +1,29 @@
+Paramétrage de la simulation 
+
+Circuit 1 (gisements -> ZST): True 
+ 
+*** Zones de dépôt ***
+- Couche gisements : aires_depose_optimisees
+- Couche ZST : zst
+
+*** Modalités de collecte ***
+Collecte par bassin : True
+- Couche bassins de collecte : bassins_saint_martin
+Fichier d'affectation des acteurs de collecte aux bassins : C:\Users\Quy Thy\Documents\acteurs_bassins_st_martin.csv
+
+Différenciation des types des déchets (=tri) : False
+*** Flux de déchets ***
+- Couche des chemins du circuit 1 : 1 - Chemins
+- Couche des chemins du circuit 2 : aires_depose_optimisees
+*** Durées des opérations ***
+Chargement (h): 1.5 - Déchargement (h) : 1.5
+Durée de chargement en fonction 
+ - du volume de déchets : False
+ - des équipements (ex : bennes) : False
+Durée de déchargement en fonction 
+ - du volume de déchets : False
+ - des équipements (ex : bennes) : False
+Pénalité de trafic False
+
+Circuit 2 (ZST -> Exutoire): False 
+ 

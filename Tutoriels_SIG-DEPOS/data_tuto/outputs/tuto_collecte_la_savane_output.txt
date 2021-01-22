@@ -1,0 +1,29 @@
+Paramétrage de la simulation 
+
+Circuit 1 (gisements -> ZST): True 
+ 
+*** Zones de dépôt ***
+- Couche gisements : gisements
+- Couche ZST : zst
+
+*** Modalités de collecte ***
+Collecte par bassin : False
+- Couche bassins de collecte : Nombre de véhicules : 3
+Capacité max. moyenne : 32.0
+
+Différenciation des types des déchets (=tri) : False
+*** Flux de déchets ***
+- Couche des chemins du circuit 1 : 1 - Chemins
+- Couche des chemins du circuit 2 : gisements
+*** Durées des opérations ***
+Chargement (h): 1.5 - Déchargement (h) : 1.5
+Durée de chargement en fonction 
+ - du volume de déchets : False
+ - des équipements (ex : bennes) : False
+Durée de déchargement en fonction 
+ - du volume de déchets : False
+ - des équipements (ex : bennes) : False
+Pénalité de trafic False
+
+Circuit 2 (ZST -> Exutoire): False 
+ 
