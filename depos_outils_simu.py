@@ -41,7 +41,6 @@ from qgis.core import QgsProcessing, QgsProcessingFeatureSourceDefinition
 
 from qgis.utils import iface
 import processing
-import pandas as pd
 import psycopg2
 from psycopg2 import Error
 
@@ -287,19 +286,22 @@ class SimuDePOs:
                         if chemin['idZoneChargement'] == id_origin :
                             select_chemins.append(chemin)
                             break
-                print('select_chemins = {}'.format(select_chemins))
+                #print('select_chemins = {}'.format(select_chemins))
                 d1, d2 = SimuDePOs.collectDurationBassin(routingInfo = select_chemins, 
-                                                        nbVehicules = self.paramInput["nbVehicules"],
-                                                        capaMax = self.paramInput["capaMaxMoy"], 
+                                                        nbVehicules = nbv, #self.paramInput["nbVehicules"],
+                                                        capaMax = capaMax, #self.paramInput["capaMaxMoy"], 
                                                         duree_chgt = self.paramInput["dureeChgt"], 
                                                         duree_dechgt = self.paramInput["dureeDechgt"])
                 self.dureesCollecte = self.dureesCollecte + d1
                 d2['idBassin'] = idBassin
-                self.dureeTotaleCollecte.append(d2)                                                        
+                self.dureeTotaleCollecte.append(d2)  
+                print("d1 : {}".format(d1))
+                print("d2 : {}\n".format(d2))
+                
             # Constitue une liste des ID des zones de chargement contenues dans le bassin
             # Sélectionne les chemins dont l'ID origine est contenu dans la liste constituée précédemment
             self.paramInput['bassinLayer'].removeSelection()
-            print('Finally, self.dureesCollecte = {}\n AND self.dureeTotaleCollecte = {}'.format(self.dureesCollecte, self.dureeTotaleCollecte))
+            #print('Finally, self.dureesCollecte = {}\n AND self.dureeTotaleCollecte = {}'.format(self.dureesCollecte, self.dureeTotaleCollecte))
         else :  
             d1, d2= SimuDePOs.collectDurationBassin(routingInfo = self.traj2ZST, 
                                                     nbVehicules = self.paramInput["nbVehicules"],
