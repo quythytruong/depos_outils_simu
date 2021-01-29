@@ -8,4 +8,6 @@ Les fonctionnalités développées dans ce plugin sont :
 - La simulation de collecte des déchets par bassin
 - La simulation de collecte de déchets triés par types
 
-Documentation pour l'installation : https://github.com/quythytruong/depos_outils_simu/tree/main/Installation-SIG-DEPOS
+Documentation pour l'installation : dossier [Installation-SIG-DEPOS](https://github.com/quythytruong/depos_outils_simu/tree/main/Installation-SIG-DEPOS)
+
+Documentation technique : [Installation-SIG-DEPOS/Documentation_Code_SIG_DEPOS.pdf](https://github.com/quythytruong/depos_outils_simu/blob/main/Installation-SIG-DEPOS/Documentation_Code_SIG_DEPOS.pdf)
